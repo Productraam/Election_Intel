@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Election Intelligence — Product Pitch Deck</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{--bg:#0a0c10;--surface:#13151c;--card:#1a1d27;--border:#2a2d3a;--text:#e8e8ec;
+    --muted:#8b8fa3;--orange:#f97316;--orange-dim:#c2410c;--green:#22c55e;--red:#ef4444;
+    --blue:#3b82f6;--purple:#a855f7;--yellow:#eab308;--pink:#ec4899;--teal:#14b8a6;
+    --gradient:linear-gradient(135deg,#f97316 0%,#ef4444 50%,#a855f7 100%)}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;height:100vh}
+  
+  /* Slide Container */
+  .deck{position:relative;width:100vw;height:100vh;overflow:hidden}
+  .slide{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;
+    justify-content:center;padding:60px 80px;opacity:0;transform:translateX(60px);
+    transition:all .5s cubic-bezier(.4,0,.2,1);pointer-events:none}
+  .slide.active{opacity:1;transform:translateX(0);pointer-events:all}
+  .slide.prev{opacity:0;transform:translateX(-60px)}
+  
+  /* Navigation */
+  .nav{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);display:flex;
+    align-items:center;gap:16px;z-index:100;background:rgba(19,21,28,.9);backdrop-filter:blur(12px);
+    padding:10px 24px;border-radius:40px;border:1px solid var(--border)}
+  .nav button{width:36px;height:36px;border-radius:50%;border:1px solid var(--border);
+    background:var(--card);color:var(--text);font-size:1rem;cursor:pointer;transition:all .2s;
+    display:flex;align-items:center;justify-content:center}
+  .nav button:hover{background:var(--orange);border-color:var(--orange);color:#fff}
+  .nav .dots{display:flex;gap:6px}
+  .nav .dot{width:8px;height:8px;border-radius:50%;background:var(--border);cursor:pointer;transition:all .3s}
+  .nav .dot.active{background:var(--orange);width:24px;border-radius:4px}
+  .nav .counter{font-size:.75rem;color:var(--muted);font-weight:600;min-width:40px;text-align:center}
+  
+  /* Typography */
+  h1{font-size:3.2rem;font-weight:800;line-height:1.1;letter-spacing:-1.5px}
+  h2{font-size:2.2rem;font-weight:700;line-height:1.2;letter-spacing:-1px;margin-bottom:20px}
+  h3{font-size:1.1rem;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;color:var(--orange);margin-bottom:12px}
+  p{font-size:1.05rem;color:var(--muted);line-height:1.6;max-width:700px}
+  .highlight{color:var(--orange);font-weight:700}
+  .gradient-text{background:var(--gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+  
+  /* Grid layouts */
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:24px;width:100%}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;width:100%}
+  .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;width:100%}
+  
+  /* Feature cards */
+  .fcard{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;
+    transition:all .3s;position:relative;overflow:hidden}
+  .fcard:hover{border-color:var(--orange);transform:translateY(-2px)}
+  .fcard .icon{font-size:2rem;margin-bottom:12px;display:block}
+  .fcard h4{font-size:1rem;font-weight:600;margin-bottom:6px}
+  .fcard p{font-size:.85rem;color:var(--muted);line-height:1.5}
+  .fcard.glow::before{content:'';position:absolute;top:-1px;left:-1px;right:-1px;height:3px;
+    background:var(--gradient);border-radius:16px 16px 0 0}
+  
+  /* Stat cards */
+  .stat{text-align:center;padding:20px}
+  .stat .num{font-size:2.8rem;font-weight:800;margin-bottom:4px}
+  .stat .label{font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:600}
+  
+  /* Flow diagram */
+  .flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center}
+  .flow-step{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 20px;
+    text-align:center;min-width:100px}
+  .flow-step .icon{font-size:1.5rem;display:block;margin-bottom:4px}
+  .flow-step .text{font-size:.78rem;font-weight:600;color:var(--text)}
+  .flow-arrow{font-size:1.2rem;color:var(--orange)}
+  
+  /* Tags */
+  .tag{display:inline-block;padding:4px 12px;border-radius:6px;font-size:.75rem;font-weight:600;margin:3px}
+  .tag-orange{background:rgba(249,115,22,.15);color:var(--orange)}
+  .tag-green{background:rgba(34,197,94,.15);color:var(--green)}
+  .tag-blue{background:rgba(59,130,246,.15);color:var(--blue)}
+  .tag-purple{background:rgba(168,85,247,.15);color:var(--purple)}
+  .tag-red{background:rgba(239,68,68,.15);color:var(--red)}
+  .tag-teal{background:rgba(20,184,166,.15);color:var(--teal)}
+  
+  /* Progress bars */
+  .pbar{height:6px;background:var(--border);border-radius:3px;margin-top:8px;overflow:hidden}
+  .pbar-fill{height:100%;border-radius:3px;transition:width 1s ease}
+  
+  /* List */
+  .check-list{list-style:none;display:grid;gap:10px}
+  .check-list li{font-size:.95rem;padding-left:28px;position:relative;line-height:1.5}
+  .check-list li::before{content:'✓';position:absolute;left:0;color:var(--green);font-weight:700;font-size:1rem}
+  
+  /* Cover specific */
+  .cover-badge{display:inline-block;padding:6px 16px;border-radius:20px;font-size:.8rem;font-weight:600;
+    background:rgba(249,115,22,.12);color:var(--orange);border:1px solid rgba(249,115,22,.25);margin-bottom:24px}
+  .cover-sub{font-size:1.3rem;color:var(--muted);margin-top:16px;font-weight:400;max-width:600px}
+  .cover-cta{display:inline-flex;padding:14px 32px;border-radius:12px;background:var(--orange);color:#fff;
+    font-size:1rem;font-weight:600;border:none;cursor:pointer;margin-top:32px;transition:all .2s}
+  .cover-cta:hover{background:var(--orange-dim);transform:scale(1.02)}
+  
+  /* Section label */
+  .section-num{font-size:.7rem;font-weight:700;color:var(--orange);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
+  
+  /* Table */
+  .ptable{width:100%;border-collapse:collapse;font-size:.82rem}
+  .ptable th{text-align:left;padding:10px 14px;color:var(--muted);font-weight:600;text-transform:uppercase;
+    font-size:.7rem;letter-spacing:.5px;border-bottom:1px solid var(--border)}
+  .ptable td{padding:10px 14px;border-bottom:1px solid rgba(42,45,58,.5)}
+  .ptable tr:hover{background:rgba(249,115,22,.03)}
+  
+  /* Two col layout */
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center;height:100%}
+  .split-wide{display:grid;grid-template-columns:1.2fr .8fr;gap:60px;align-items:center}
+  
+  /* Hierarchy visual */
+  .hier-chain{display:flex;flex-direction:column;gap:4px;font-size:.82rem}
+  .hier-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;
+    background:var(--card);border:1px solid var(--border);transition:all .2s}
+  .hier-item:hover{border-color:var(--orange)}
+  .hier-item .hi-icon{font-size:1.1rem}
+  .hier-item .hi-label{font-weight:600}
+  .hier-item .hi-sub{color:var(--muted);font-size:.75rem;margin-left:auto}
+  .hier-connector{width:2px;height:8px;background:var(--border);margin-left:20px}
+  
+  /* Animated bg */
+  .bg-glow{position:absolute;width:500px;height:500px;border-radius:50%;filter:blur(150px);opacity:.08;pointer-events:none}
+  .bg-glow.orange{background:var(--orange);top:-100px;right:-100px}
+  .bg-glow.purple{background:var(--purple);bottom:-100px;left:-100px}
+  .bg-glow.blue{background:var(--blue);top:50%;left:50%;transform:translate(-50%,-50%)}
+  
+  /* Pricing */
+  .price-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:32px;text-align:center;position:relative}
+  .price-card.featured{border-color:var(--orange);box-shadow:0 0 40px rgba(249,115,22,.1)}
+  .price-card.featured::before{content:'MOST POPULAR';position:absolute;top:-12px;left:50%;transform:translateX(-50%);
+    background:var(--orange);color:#fff;padding:4px 16px;border-radius:20px;font-size:.7rem;font-weight:700;letter-spacing:1px}
+  .price-card .price{font-size:2.4rem;font-weight:800;margin:16px 0 8px}
+  .price-card .period{color:var(--muted);font-size:.85rem}
+  .price-card ul{list-style:none;text-align:left;margin:20px 0;display:grid;gap:8px}
+  .price-card ul li{font-size:.85rem;padding-left:20px;position:relative}
+  .price-card ul li::before{content:'✓';position:absolute;left:0;color:var(--green);font-weight:700}
+  .price-card .btn{display:block;padding:12px;border-radius:10px;border:1px solid var(--border);
+    background:var(--surface);color:var(--text);font-size:.9rem;font-weight:600;cursor:pointer;transition:all .2s;text-align:center;margin-top:16px}
+  .price-card.featured .btn{background:var(--orange);border-color:var(--orange);color:#fff}
+  
+  /* Keyboard hint */
+  .kbd-hint{position:fixed;top:20px;right:24px;font-size:.72rem;color:var(--muted);z-index:100;
+    background:rgba(19,21,28,.8);padding:6px 14px;border-radius:8px;border:1px solid var(--border)}
+  kbd{background:var(--card);padding:2px 6px;border-radius:4px;font-family:inherit;border:1px solid var(--border);font-size:.7rem}
+  
+  @media print{
+    .nav,.kbd-hint{display:none!important}
+    .slide{position:relative!important;opacity:1!important;transform:none!important;pointer-events:all!important;
+      page-break-after:always;height:100vh;padding:40px 60px}
+    body{overflow:auto}
+  }
+</style>
+</head>
+<body>
+
+<div class="kbd-hint">Navigate: <kbd>←</kbd> <kbd>→</kbd> or <kbd>Space</kbd></div>
+
+<div class="deck" id="deck">
+
+<!-- ══════════════════════════════════════════════════════════ SLIDE 1: COVER -->
+<div class="slide active" data-slide="0">
+  <div class="bg-glow orange"></div>
+  <div class="bg-glow purple"></div>
+  <div class="cover-badge">⚡ ELECTION CAMPAIGN INTELLIGENCE PLATFORM</div>
+  <h1 style="max-width:800px">Win Elections with <span class="gradient-text">Data-Driven</span> Ground Strategy</h1>
+  <p class="cover-sub">AI-powered voter analytics, micro-targeting, and field operations platform — from PDF voter lists to winning formula in minutes.</p>
+  <button class="cover-cta" onclick="goSlide(1)">Explore the Platform →</button>
+  <div style="margin-top:40px;display:flex;gap:40px">
+    <div class="stat"><div class="num val-orange" style="color:var(--orange)">30+</div><div class="label">Analytics Metrics</div></div>
+    <div class="stat"><div class="num" style="color:var(--green)">16</div><div class="label">Report Sections</div></div>
+    <div class="stat"><div class="num" style="color:var(--blue)">9</div><div class="label">Hierarchy Levels</div></div>
+    <div class="stat"><div class="num" style="color:var(--purple)">&lt;1s</div><div class="label">Per Page OCR</div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ SLIDE 2: PROBLEM -->
+<div class="slide" data-slide="1">
+  <div class="bg-glow blue"></div>
+  <div class="section-num">THE PROBLEM</div>
+  <h2>Election campaigns still rely on <span class="highlight">gut feeling</span> over ground data</h2>
+  <div class="grid-2" style="margin-top:32px">
+    <div>
+      <ul class="check-list" style="list-style:none">
+        <li style="color:var(--red)" class="prob">Voter lists are 50-page image PDFs — unusable without manual data entry</li>
+        <li style="color:var(--red)" class="prob">No booth-level strategy — same approach for every polling station</li>
+        <li style="color:var(--red)" class="prob">Caste arithmetic exists on paper, never connected to voter data</li>
+        <li style="color:var(--red)" class="prob">Field workers have no tracking — contacts, slips, sentiment lost</li>
+        <li style="color:var(--red)" class="prob">Election day is chaos — no priority list, no real-time turnout</li>
+        <li style="color:var(--red)" class="prob">Historical patterns ignored — every election fought from scratch</li>
+      </ul>
+    </div>
+    <div class="fcard glow" style="align-self:center">
+      <span class="icon">📊</span>
+      <h4>The Cost of Flying Blind</h4>
+      <p style="margin-top:8px">Campaigns that don't classify voters waste <strong style="color:var(--red)">40-60%</strong> of field effort on non-convertible voters. Our winning formula shows you exactly where each vote needs to come from.</p>
+      <div class="pbar" style="margin-top:16px"><div class="pbar-fill" style="width:35%;background:var(--red)"></div></div>
+      <p style="font-size:.75rem;margin-top:4px">Typical campaign: Only 35% of effort reaches persuadable voters</p>
+    </div>
+  </div>
+  <style>.prob::before{content:'✗ '!important;color:var(--red)!important}</style>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ SLIDE 3: SOLUTION -->
+<div class="slide" data-slide="2">
+  <div class="bg-glow orange"></div>
+  <div class="section-num">THE SOLUTION</div>
+  <h2>From <span class="highlight">raw PDF</span> to <span class="highlight">winning strategy</span> — in 3 steps</h2>
+  <div class="flow" style="margin-top:40px">
+    <div class="flow-step"><span class="icon">📄</span><span class="text">Upload<br>Voter List PDF</span></div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step"><span class="icon">🔍</span><span class="text">OCR + AI<br>Extraction</span></div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step"><span class="icon">👥</span><span class="text">Auto-detect<br>Families & Caste</span></div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step"><span class="icon">📊</span><span class="text">30+ Analytics<br>Dashboards</span></div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step"><span class="icon">🎯</span><span class="text">Booth-Level<br>Winning Formula</span></div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step"><span class="icon">📋</span><span class="text">Field Ops<br>Action Plan</span></div>
+  </div>
+  <div class="grid-3" style="margin-top:40px">
+    <div class="fcard glow">
+      <span class="icon">⚡</span>
+      <h4>Instant Intelligence</h4>
+      <p>Upload a scanned PDF voter list. Our OCR engine processes ~1 second/page and extracts every voter's name, age, gender, house, family — automatically.</p>
+    </div>
+    <div class="fcard glow">
+      <span class="icon">🧠</span>
+      <h4>Smart Enrichment</h4>
+      <p>Auto-detects surnames, maps 60+ communities, groups households into families, flags youth/senior/first-time voters, assigns unique IDs.</p>
+    </div>
+    <div class="fcard glow">
+      <span class="icon">🏆</span>
+      <h4>Winning Formula</h4>
+      <p>Per-booth calculation: expected turnout × winning target vs confirmed supporters. Shows exactly how many swing voters you need to convert.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ SLIDE 4: PLATFORM OVERVIEW -->
+<div class="slide" data-slide="3">
+  <div class="bg-glow purple"></div>
+  <div class="section-num">PLATFORM OVERVIEW</div>
+  <h2>10-Tab Dashboard — Everything a Campaign Needs</h2>
+  <div class="grid-2" style="margin-top:24px">
+    <div>
+      <div style="display:grid;gap:8px">
+        <div class="fcard" style="padding:14px 18px;display:flex;align-items:center;gap:12px">
+          <span style="font-size:1.3rem">📊</span><div><strong>Overview</strong><br><span style="font-size:.78rem;color:var(--muted)">Demographics, age, gender, community charts</span></div>
+        </div>
+        <div class="fcard" style="padding:14px 18px;display:flex;align-items:center;gap:12px">
+          <span style="font-size:1.3rem">⚡</span><div><strong style="color:var(--red)">Strategy</strong><br><span style="font-size:.78rem;color:var(--muted)">Conversion funnel, caste arithmetic, family influence, time slots</span></div>
+        </div>
+        <div class="fcard" style="padding:14px 18px;display:flex;align-items:center;gap:12px">
+          <span style="font-size:1.3rem">🏠</span><div><strong>Family Tree</strong><br><span style="font-size:.78rem;color:var(--muted)">Household grouping, family heads, influence mapping</span></div>
+        </div>
+        <div class="fcard" style="padding:14px 18px;display:flex;align-items:center;gap:12px">
+          <span style="font-size:1.3rem">🎯</span><div><strong>Booth Strategy</strong><br><span style="font-size:.78rem;color:var(--muted)">Booth strength meter, winning formula per booth</span></div>
+        </div>
+        <div class="fcard" style="padding:14px 18px;display:flex;align-items:center;gap:12px">
+          <span style="font-size:1.3rem">👥</span><div><strong>Voter Data</strong><br><span style="font-size:.78rem;color:var(--muted)">Search, filter, classify, tag — edit every voter inline</span></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div style="display:grid;gap:8px">
+        <div class="fcard" style="padding:14px 18px;display:flex;align-items:center;gap:12px">
+          <span style="font-size:1.3rem">🏷️</span><div><strong>Tags</strong><br><span style="font-size:.78rem;color:var(--muted)">Scheme beneficiaries, party lean, bulk tagging</span></div>
+        </div>
+        <div class="fcard" style="padding:14px 18px;display:flex;align-items:center;gap:12px">
+          <span style="font-size:1.3rem">📈</span><div><strong>History</strong><br><span style="font-size:.78rem;color:var(--muted)">Past election results, party trends, turnout patterns</span></div>
+        </div>
+        <div class="fcard" style="padding:14px 18px;display:flex;align-items:center;gap:12px">
+          <span style="font-size:1.3rem">🚶</span><div><strong>Field Ops</strong><br><span style="font-size:.78rem;color:var(--muted)">Panna Pramukh plan, contact tracking, slip distribution</span></div>
+        </div>
+        <div class="fcard" style="padding:14px 18px;display:flex;align-items:center;gap:12px">
+          <span style="font-size:1.3rem">🗳️</span><div><strong>Election Day</strong><br><span style="font-size:.78rem;color:var(--muted)">Live turnout tracker, priority pending, vote simulator</span></div>
+        </div>
+        <div class="fcard" style="padding:14px 18px;display:flex;align-items:center;gap:12px">
+          <span style="font-size:1.3rem">✅</span><div><strong>Data Quality</strong><br><span style="font-size:.78rem;color:var(--muted)">Missing fields, duplicates, quality score, volunteer needs</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ SLIDE 5: OCR + DATA -->
+<div class="slide" data-slide="4">
+  <div class="bg-glow orange"></div>
+  <div class="section-num">DATA INGESTION</div>
+  <h2>Upload scanned PDFs — we handle the rest</h2>
+  <div class="split-wide" style="margin-top:24px">
+    <div>
+      <div class="grid-2" style="gap:16px">
+        <div class="fcard">
+          <span class="icon">📄</span>
+          <h4>Image PDF Support</h4>
+          <p>Scanned ECI voter list PDFs processed with native Windows OCR at ~1 second per page</p>
+        </div>
+        <div class="fcard">
+          <span class="icon">🔤</span>
+          <h4>Text PDF Support</h4>
+          <p>Digitally generated PDFs parsed directly with PyMuPDF — instant extraction</p>
+        </div>
+        <div class="fcard">
+          <span class="icon">📊</span>
+          <h4>CSV / TXT Upload</h4>
+          <p>Import voter data from spreadsheets or plain text files</p>
+        </div>
+        <div class="fcard">
+          <span class="icon">🧩</span>
+          <h4>Smart Parsing</h4>
+          <p>3 cascading parsers detect ECI roll format, box format, and text format automatically</p>
+        </div>
+      </div>
+    </div>
+    <div>
+      <h3 style="margin-bottom:16px">Auto-Extracted Per Voter</h3>
+      <div style="display:flex;flex-wrap:wrap;gap:4px">
+        <span class="tag tag-orange">Name</span>
+        <span class="tag tag-orange">Father Name</span>
+        <span class="tag tag-orange">Age</span>
+        <span class="tag tag-orange">Gender</span>
+        <span class="tag tag-orange">Voter ID (EPIC)</span>
+        <span class="tag tag-blue">House Number</span>
+        <span class="tag tag-blue">Serial Number</span>
+        <span class="tag tag-blue">Booth / Part No</span>
+        <span class="tag tag-green">Surname</span>
+        <span class="tag tag-green">Community (auto)</span>
+        <span class="tag tag-green">Family ID</span>
+        <span class="tag tag-green">Family Size</span>
+        <span class="tag tag-purple">First-Time Voter</span>
+        <span class="tag tag-purple">Youth Flag</span>
+        <span class="tag tag-purple">Senior Flag</span>
+        <span class="tag tag-purple">Transport Need</span>
+        <span class="tag tag-teal">Unique NQT ID</span>
+      </div>
+      <div style="margin-top:20px;padding:16px;background:var(--surface);border-radius:10px;border:1px solid var(--border)">
+        <p style="font-size:.82rem;margin:0"><strong style="color:var(--green)">60+ surnames</strong> auto-mapped to communities: Brahmin, OBC, SC, ST, Muslim, Jain, Rajput, Reddy, Kamma, Nair, and more — powering caste arithmetic instantly.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ SLIDE 6: STRATEGY -->
+<div class="slide" data-slide="5">
+  <div class="bg-glow purple"></div>
+  <div class="section-num">WINNING STRATEGY ENGINE</div>
+  <h2>Booth-level strategy that <span class="highlight">wins elections</span></h2>
+  <div class="grid-4" style="margin-top:28px">
+    <div class="fcard glow" style="text-align:center">
+      <span class="icon">🎯</span>
+      <h4>Winning Formula</h4>
+      <p>Per-booth math: Turnout × 50%+1 = Target. Pakka confirmed. Gap = Swing voters needed. Status: SAFE / WINNABLE / TOUGH.</p>
+      <div style="margin-top:12px">
+        <span class="tag tag-green">SAFE</span>
+        <span class="tag tag-orange">WINNABLE</span>
+        <span class="tag tag-red">TOUGH</span>
+      </div>
+    </div>
+    <div class="fcard glow" style="text-align:center">
+      <span class="icon">📞</span>
+      <h4>3-Contact Plan</h4>
+      <p>Every Swing voter gets 3 contacts before election. Auto-prioritized by influence score and family head status.</p>
+      <div class="pbar" style="margin-top:12px"><div class="pbar-fill" style="width:67%;background:var(--orange)"></div></div>
+      <p style="font-size:.72rem;margin-top:4px">Contact Coverage: 67%</p>
+    </div>
+    <div class="fcard glow" style="text-align:center">
+      <span class="icon">🏘️</span>
+      <h4>Family Influence</h4>
+      <p>Target family heads of 4+ member households. Convert the head → get the family vote. Shows head's classification + sentiment.</p>
+    </div>
+    <div class="fcard glow" style="text-align:center">
+      <span class="icon">🕐</span>
+      <h4>Time Slot Plan</h4>
+      <p>Auto-assigns voters to election-day time slots: Pakka first (7-9 AM), Seniors/Transport (9-12), Remaining (12-3), Final Push (3-5).</p>
+    </div>
+  </div>
+  <div class="grid-2" style="margin-top:20px">
+    <div class="fcard">
+      <h4>🎪 Caste Arithmetic Strategy</h4>
+      <p>Per-community Pakka/Virodhi/Swing breakdown → auto-recommendation:</p>
+      <div style="margin-top:8px;display:grid;gap:4px;font-size:.82rem">
+        <div><span class="tag tag-green">CONSOLIDATE</span> High Pakka% — keep them locked in</div>
+        <div><span class="tag tag-orange">CONVERT</span> High Swing% — focus outreach here</div>
+        <div><span class="tag tag-purple">SPLIT</span> High Virodhi — try to split their vote</div>
+        <div><span class="tag tag-blue">ENGAGE</span> Unclassified — need ground data first</div>
+      </div>
+    </div>
+    <div class="fcard">
+      <h4>🎛️ Vote Share Simulator</h4>
+      <p>Adjust sliders for Pakka turnout %, Swing capture %, First-time capture % → instant vote share prediction.</p>
+      <div style="margin-top:12px">
+        <div style="display:flex;justify-content:space-between;font-size:.8rem"><span>Pakka Turnout</span><span style="color:var(--green)">85%</span></div>
+        <div class="pbar"><div class="pbar-fill" style="width:85%;background:var(--green)"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:.8rem;margin-top:8px"><span>Swing Capture</span><span style="color:var(--orange)">45%</span></div>
+        <div class="pbar"><div class="pbar-fill" style="width:45%;background:var(--orange)"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:.8rem;margin-top:8px"><span>Predicted Result</span><span style="color:var(--green);font-weight:700">WIN ✓</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ SLIDE 7: HIERARCHY -->
+<div class="slide" data-slide="6">
+  <div class="bg-glow blue"></div>
+  <div class="section-num">DATA ORGANIZATION</div>
+  <h2>9-Level Hierarchy — <span class="highlight">drill down or roll up</span></h2>
+  <div class="split" style="margin-top:24px">
+    <div>
+      <p style="margin-bottom:24px">Every ward is organized in a full administrative hierarchy. Navigate to any level — the dashboard instantly shows aggregated analytics across all wards below.</p>
+      <div class="hier-chain">
+        <div class="hier-item"><span class="hi-icon">🌐</span><span class="hi-label">All Data</span><span class="hi-sub">Aggregated</span></div>
+        <div class="hier-connector"></div>
+        <div class="hier-item"><span class="hi-icon">🗺️</span><span class="hi-label">Region</span><span class="hi-sub">e.g. South India</span></div>
+        <div class="hier-connector"></div>
+        <div class="hier-item"><span class="hi-icon">🏛️</span><span class="hi-label">State</span><span class="hi-sub">e.g. Karnataka</span></div>
+        <div class="hier-connector"></div>
+        <div class="hier-item"><span class="hi-icon">📊</span><span class="hi-label">Division</span><span class="hi-sub">e.g. Gulbarga Division</span></div>
+        <div class="hier-connector"></div>
+        <div class="hier-item"><span class="hi-icon">🏢</span><span class="hi-label">District</span><span class="hi-sub">e.g. Kalaburagi</span></div>
+        <div class="hier-connector"></div>
+        <div class="hier-item"><span class="hi-icon">🗺️</span><span class="hi-label">Taluka</span><span class="hi-sub">e.g. Aland</span></div>
+        <div class="hier-connector"></div>
+        <div class="hier-item"><span class="hi-icon">📍</span><span class="hi-label">Hobli</span><span class="hi-sub">e.g. Aland Hobli</span></div>
+        <div class="hier-connector"></div>
+        <div class="hier-item"><span class="hi-icon">🏘️</span><span class="hi-label">Gram Panchayat</span><span class="hi-sub">e.g. Khajuri GP</span></div>
+        <div class="hier-connector"></div>
+        <div class="hier-item"><span class="hi-icon">🏠</span><span class="hi-label">Village</span><span class="hi-sub">e.g. Khajuri</span></div>
+        <div class="hier-connector"></div>
+        <div class="hier-item" style="border-color:var(--orange)"><span class="hi-icon">📋</span><span class="hi-label" style="color:var(--orange)">Ward</span><span class="hi-sub" style="color:var(--green)">✏️ Editable</span></div>
+      </div>
+    </div>
+    <div>
+      <div class="fcard glow">
+        <h4>📊 Aggregated View</h4>
+        <p>Select any level above Ward to see combined analytics across all wards beneath. Perfect for district-level strategists.</p>
+        <div style="margin-top:12px">
+          <span class="tag tag-blue">Combined Demographics</span>
+          <span class="tag tag-blue">Cross-Ward Booth Strength</span>
+          <span class="tag tag-blue">Merged Caste Arithmetic</span>
+          <span class="tag tag-blue">Total Winning Formula</span>
+        </div>
+      </div>
+      <div class="fcard glow" style="margin-top:12px">
+        <h4>✏️ Ward-Level Editing</h4>
+        <p>All data entry happens at the ward level — classify voters, log contacts, tag scheme beneficiaries, track slips. Changes persist automatically.</p>
+      </div>
+      <div class="fcard glow" style="margin-top:12px">
+        <h4>🔽 Dropdown Navigation</h4>
+        <p>Cascading dropdowns in the dashboard — switch between any level without leaving the analytics view. No back-button needed.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ SLIDE 8: FIELD OPS -->
+<div class="slide" data-slide="7">
+  <div class="bg-glow orange"></div>
+  <div class="section-num">FIELD OPERATIONS</div>
+  <h2>From <span class="highlight">strategy room</span> to <span class="highlight">polling booth</span></h2>
+  <div class="grid-3" style="margin-top:28px">
+    <div class="fcard glow">
+      <span class="icon">📋</span>
+      <h4>Panna Pramukh Auto-Plan</h4>
+      <p>1 worker per 25 voters per booth. Auto-generates page assignments with serial number ranges. Know exactly how many volunteers you need.</p>
+      <div style="margin-top:8px;font-size:.8rem;color:var(--muted)">
+        <div>Booth 12: 4 Panna Pramukhs</div>
+        <div>Booth 13: 3 Panna Pramukhs</div>
+      </div>
+    </div>
+    <div class="fcard glow">
+      <span class="icon">📞</span>
+      <h4>Contact Tracking</h4>
+      <p>Log every voter contact — track 1x, 2x, 3x contact rates per booth. See which areas need more ground coverage.</p>
+      <div class="pbar" style="margin-top:12px"><div class="pbar-fill" style="width:72%;background:var(--blue)"></div></div>
+      <p style="font-size:.72rem;margin-top:4px">1x Contact: 72%</p>
+      <div class="pbar"><div class="pbar-fill" style="width:45%;background:var(--orange)"></div></div>
+      <p style="font-size:.72rem;margin-top:4px">2x Contact: 45%</p>
+    </div>
+    <div class="fcard glow">
+      <span class="icon">😊</span>
+      <h4>Sentiment Tracking</h4>
+      <p>Record voter sentiment after each contact: Positive, Neutral, Negative, Hostile. Per-booth sentiment heatmap.</p>
+      <div style="margin-top:8px;display:flex;gap:4px">
+        <span class="tag tag-green">Positive 42%</span>
+        <span class="tag tag-blue">Neutral 35%</span>
+        <span class="tag tag-red">Negative 23%</span>
+      </div>
+    </div>
+  </div>
+  <div class="grid-3" style="margin-top:16px">
+    <div class="fcard">
+      <span class="icon">📨</span>
+      <h4>Slip Distribution</h4>
+      <p>Track which voters received their polling slip. Per-booth delivery rates and pending list.</p>
+    </div>
+    <div class="fcard">
+      <span class="icon">🏷️</span>
+      <h4>Scheme Beneficiary Tags</h4>
+      <p>Tag voters by government scheme: PM-KISAN, Ujjwala, Ration Card, MNREGA, Pension. Bulk tagging with one click.</p>
+      <div style="margin-top:6px">
+        <span class="tag tag-teal">PM-KISAN</span>
+        <span class="tag tag-teal">MNREGA</span>
+        <span class="tag tag-teal">Ration BPL</span>
+      </div>
+    </div>
+    <div class="fcard">
+      <span class="icon">📊</span>
+      <h4>Party Lean Analysis</h4>
+      <p>Track party inclination per voter. Analyze party lean distribution across booths and communities.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ SLIDE 9: ELECTION DAY -->
+<div class="slide" data-slide="8">
+  <div class="bg-glow purple"></div>
+  <div class="section-num">ELECTION DAY</div>
+  <h2>Real-time <span class="highlight">war room</span> on election day</h2>
+  <div class="grid-2" style="margin-top:28px">
+    <div>
+      <div class="grid-2" style="gap:12px">
+        <div class="fcard" style="text-align:center">
+          <div style="font-size:2.5rem;font-weight:800;color:var(--green)">68%</div>
+          <p style="font-size:.8rem;text-align:center">Turnout at 3 PM</p>
+        </div>
+        <div class="fcard" style="text-align:center">
+          <div style="font-size:2.5rem;font-weight:800;color:var(--orange)">142</div>
+          <p style="font-size:.8rem;text-align:center">Pakka Not Yet Voted</p>
+        </div>
+        <div class="fcard" style="text-align:center">
+          <div style="font-size:2.5rem;font-weight:800;color:var(--blue)">23</div>
+          <p style="font-size:.8rem;text-align:center">Need Transport Now</p>
+        </div>
+        <div class="fcard" style="text-align:center">
+          <div style="font-size:2.5rem;font-weight:800;color:var(--purple)">WIN ✓</div>
+          <p style="font-size:.8rem;text-align:center">Predicted Result</p>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="fcard glow">
+        <h4>⏱️ Time-Slot Execution</h4>
+        <table class="ptable" style="margin-top:8px">
+          <tr><th>Slot</th><th>Target</th><th>Strategy</th></tr>
+          <tr><td style="color:var(--green);font-weight:600">7-9 AM</td><td>Pakka voters</td><td>Get confirmed supporters out first</td></tr>
+          <tr><td style="color:var(--blue);font-weight:600">9-12 PM</td><td>Seniors, Women</td><td>Transport assistance, family coordination</td></tr>
+          <tr><td style="color:var(--orange);font-weight:600">12-3 PM</td><td>Remaining</td><td>Second round of door-to-door push</td></tr>
+          <tr><td style="color:var(--red);font-weight:600">3-5 PM</td><td>Swing/Doubtful</td><td>Final persuasion push, last-mile transport</td></tr>
+        </table>
+      </div>
+      <div class="fcard" style="margin-top:12px">
+        <h4>🗳️ Mark Voted — Live</h4>
+        <p>Booth agents mark voters as voted in real-time. Instantly see which Pakka voters haven't shown up — send reminders immediately.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ SLIDE 10: REPORT -->
+<div class="slide" data-slide="9">
+  <div class="bg-glow blue"></div>
+  <div class="section-num">PROFESSIONAL REPORTS</div>
+  <h2>16-Section PDF Report — <span class="highlight">ready to print</span></h2>
+  <div class="split" style="margin-top:20px">
+    <div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:.82rem">
+        <div class="fcard" style="padding:10px 14px"><span style="color:var(--orange);font-weight:700">01</span> Executive Summary</div>
+        <div class="fcard" style="padding:10px 14px"><span style="color:var(--orange);font-weight:700">02</span> Voter Demographics</div>
+        <div class="fcard" style="padding:10px 14px"><span style="color:var(--orange);font-weight:700">03</span> Age & Gender Analysis</div>
+        <div class="fcard" style="padding:10px 14px"><span style="color:var(--orange);font-weight:700">04</span> Caste Arithmetic</div>
+        <div class="fcard" style="padding:10px 14px"><span style="color:var(--orange);font-weight:700">05</span> Family & Household</div>
+        <div class="fcard" style="padding:10px 14px"><span style="color:var(--orange);font-weight:700">06</span> Booth Strength</div>
+        <div class="fcard" style="padding:10px 14px"><span style="color:var(--orange);font-weight:700">07</span> Winning Formula</div>
+        <div class="fcard" style="padding:10px 14px"><span style="color:var(--orange);font-weight:700">08</span> Historical Analysis</div>
+        <div class="fcard" style="padding:10px 14px"><span style="color:var(--orange);font-weight:700">09</span> Classification Funnel</div>
+        <div class="fcard" style="padding:10px 14px"><span style="color:var(--orange);font-weight:700">10</span> Tags & Schemes</div>
+        <div class="fcard" style="padding:10px 14px"><span style="color:var(--orange);font-weight:700">11</span> 3-Contact Plan</div>
+        <div class="fcard" style="padding:10px 14px"><span style="color:var(--orange);font-weight:700">12</span> Family Influence</div>
+        <div class="fcard" style="padding:10px 14px"><span style="color:var(--orange);font-weight:700">13</span> Election Day Slots</div>
+        <div class="fcard" style="padding:10px 14px"><span style="color:var(--orange);font-weight:700">14</span> Field Operations</div>
+        <div class="fcard" style="padding:10px 14px"><span style="color:var(--orange);font-weight:700">15</span> Data Quality Audit</div>
+        <div class="fcard" style="padding:10px 14px"><span style="color:var(--orange);font-weight:700">16</span> Ground Action Plan</div>
+      </div>
+    </div>
+    <div>
+      <div class="fcard glow">
+        <h4>📄 One-Click Generation</h4>
+        <p>Hit "Download Report" — a professional multi-page PDF with cover page, table of contents, KPI tables, charts, and booth-level strategy. Ready to hand to your candidate.</p>
+        <div style="margin-top:16px;display:grid;gap:6px;font-size:.85rem">
+          <div>✅ Auto-generated cover with hierarchy context</div>
+          <div>✅ Color-coded tables & data visualizations</div>
+          <div>✅ Confidential header/footer on every page</div>
+          <div>✅ Multi-ward reports from any hierarchy level</div>
+          <div>✅ Booth-by-booth action items</div>
+          <div>✅ Generates in under 1 second</div>
+        </div>
+      </div>
+      <div class="fcard" style="margin-top:12px">
+        <h4>📊 Export Options</h4>
+        <div style="margin-top:8px;display:flex;gap:8px">
+          <span class="tag tag-orange">PDF Report</span>
+          <span class="tag tag-green">CSV Export</span>
+          <span class="tag tag-blue">JSON Export</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ SLIDE 11: HISTORY -->
+<div class="slide" data-slide="10">
+  <div class="bg-glow orange"></div>
+  <div class="section-num">ELECTION HISTORY</div>
+  <h2>Learn from the past — <span class="highlight">sharpen the formula</span></h2>
+  <div class="split" style="margin-top:24px">
+    <div>
+      <p>Record past election results — Assembly, Lok Sabha, GP, Zilla Panchayat, Municipal, By-Elections. The platform automatically:</p>
+      <ul class="check-list" style="margin-top:20px">
+        <li>Calculates average historical turnout and uses it in the Winning Formula (instead of default 65%)</li>
+        <li>Tracks party-wise vote totals, wins, and avg votes across elections</li>
+        <li>Visualizes party vote trends across election years</li>
+        <li>Identifies which party is gaining or losing momentum</li>
+        <li>Shows constituency-level competitiveness — close fights vs safe seats</li>
+        <li>Persists history with ward data — builds institutional memory</li>
+      </ul>
+    </div>
+    <div>
+      <div class="fcard glow">
+        <h4>📊 Sample: 3-Election Trend</h4>
+        <table class="ptable" style="margin-top:8px">
+          <tr><th>Year</th><th>Type</th><th>Turnout</th><th>Winner</th><th>Margin</th></tr>
+          <tr><td>2023</td><td>Assembly</td><td style="color:var(--green)">72%</td><td style="color:var(--orange);font-weight:600">BJP</td><td>3,000</td></tr>
+          <tr><td>2018</td><td>Assembly</td><td style="color:var(--green)">68%</td><td style="color:var(--blue);font-weight:600">INC</td><td>5,200</td></tr>
+          <tr><td>2013</td><td>Assembly</td><td style="color:var(--green)">65%</td><td style="color:var(--blue);font-weight:600">INC</td><td>12,000</td></tr>
+        </table>
+        <div style="margin-top:12px;padding:12px;background:var(--surface);border-radius:8px">
+          <p style="font-size:.82rem;margin:0"><strong style="color:var(--yellow)">Insight:</strong> Turnout trending up. BJP gaining momentum. INC margin shrinking. This is a <strong style="color:var(--orange)">WINNABLE</strong> seat with right swing conversion.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ SLIDE 12: TECH -->
+<div class="slide" data-slide="11">
+  <div class="bg-glow purple"></div>
+  <div class="section-num">TECHNOLOGY</div>
+  <h2>Built for <span class="highlight">speed, privacy & portability</span></h2>
+  <div class="grid-3" style="margin-top:32px">
+    <div class="fcard glow" style="text-align:center">
+      <span class="icon">💻</span>
+      <h4>Runs Locally</h4>
+      <p>No cloud dependency. All data stays on your machine. Zero internet required after setup. Complete data sovereignty.</p>
+    </div>
+    <div class="fcard glow" style="text-align:center">
+      <span class="icon">⚡</span>
+      <h4>Blazing Fast</h4>
+      <p>OCR at ~1s/page. PDF report in &lt;1s. Dashboard loads 18 analytics in parallel. No loading spinners.</p>
+    </div>
+    <div class="fcard glow" style="text-align:center">
+      <span class="icon">🔒</span>
+      <h4>Data Privacy</h4>
+      <p>Voter data never leaves the local machine. No cloud APIs, no external servers. Fully ECI-compliant data handling.</p>
+    </div>
+    <div class="fcard glow" style="text-align:center">
+      <span class="icon">📱</span>
+      <h4>Mobile Responsive</h4>
+      <p>Dark-themed dashboard works on tablets and phones. Field workers can classify voters from their mobile browser.</p>
+    </div>
+    <div class="fcard glow" style="text-align:center">
+      <span class="icon">🐍</span>
+      <h4>Python + Flask</h4>
+      <p>Lightweight stack. PyMuPDF for PDF, Windows OCR for images, ReportLab for reports, Chart.js for visualizations.</p>
+    </div>
+    <div class="fcard glow" style="text-align:center">
+      <span class="icon">💾</span>
+      <h4>JSON Storage</h4>
+      <p>No database needed. Ward data saved as JSON files. Easy backup, share, and transfer between machines.</p>
+    </div>
+  </div>
+  <div style="margin-top:24px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+    <span class="tag tag-orange">Python 3.13</span>
+    <span class="tag tag-green">Flask</span>
+    <span class="tag tag-blue">PyMuPDF</span>
+    <span class="tag tag-purple">WinOCR</span>
+    <span class="tag tag-teal">ReportLab</span>
+    <span class="tag tag-orange">Chart.js</span>
+    <span class="tag tag-green">JSON Storage</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ SLIDE 13: COMPETITIVE -->
+<div class="slide" data-slide="12">
+  <div class="bg-glow blue"></div>
+  <div class="section-num">COMPETITIVE ADVANTAGE</div>
+  <h2>Why Election Intelligence <span class="highlight">wins</span></h2>
+  <table class="ptable" style="margin-top:28px;max-width:1000px">
+    <tr>
+      <th style="width:25%">Capability</th>
+      <th style="width:25%;text-align:center">Election Intelligence</th>
+      <th style="width:25%;text-align:center">Spreadsheets</th>
+      <th style="width:25%;text-align:center">Generic CRM</th>
+    </tr>
+    <tr><td>PDF OCR Voter Extraction</td><td style="text-align:center;color:var(--green);font-weight:700">✓ Auto (~1s/pg)</td><td style="text-align:center;color:var(--red)">✗ Manual</td><td style="text-align:center;color:var(--red)">✗</td></tr>
+    <tr><td>Auto Caste/Community Mapping</td><td style="text-align:center;color:var(--green);font-weight:700">✓ 60+ surnames</td><td style="text-align:center;color:var(--red)">✗</td><td style="text-align:center;color:var(--red)">✗</td></tr>
+    <tr><td>Family/Household Detection</td><td style="text-align:center;color:var(--green);font-weight:700">✓ Auto</td><td style="text-align:center;color:var(--red)">✗</td><td style="text-align:center;color:var(--red)">✗</td></tr>
+    <tr><td>Booth-Level Winning Formula</td><td style="text-align:center;color:var(--green);font-weight:700">✓ Per-booth</td><td style="text-align:center;color:var(--yellow)">◐ Manual</td><td style="text-align:center;color:var(--red)">✗</td></tr>
+    <tr><td>Caste Arithmetic Strategy</td><td style="text-align:center;color:var(--green);font-weight:700">✓ Auto-recommend</td><td style="text-align:center;color:var(--yellow)">◐ Basic</td><td style="text-align:center;color:var(--red)">✗</td></tr>
+    <tr><td>3-Contact Priority Planning</td><td style="text-align:center;color:var(--green);font-weight:700">✓ Prioritized</td><td style="text-align:center;color:var(--red)">✗</td><td style="text-align:center;color:var(--yellow)">◐ Generic</td></tr>
+    <tr><td>Election Day Time Slots</td><td style="text-align:center;color:var(--green);font-weight:700">✓ Auto-assigned</td><td style="text-align:center;color:var(--red)">✗</td><td style="text-align:center;color:var(--red)">✗</td></tr>
+    <tr><td>9-Level Hierarchy Drill-down</td><td style="text-align:center;color:var(--green);font-weight:700">✓</td><td style="text-align:center;color:var(--red)">✗</td><td style="text-align:center;color:var(--red)">✗</td></tr>
+    <tr><td>Offline / Local-Only</td><td style="text-align:center;color:var(--green);font-weight:700">✓ 100% local</td><td style="text-align:center;color:var(--green)">✓</td><td style="text-align:center;color:var(--red)">✗ Cloud</td></tr>
+    <tr><td>16-Section PDF Report</td><td style="text-align:center;color:var(--green);font-weight:700">✓ One-click</td><td style="text-align:center;color:var(--red)">✗</td><td style="text-align:center;color:var(--red)">✗</td></tr>
+  </table>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ SLIDE 14: PRICING -->
+<div class="slide" data-slide="13">
+  <div class="bg-glow orange"></div>
+  <div class="section-num">PRICING</div>
+  <h2>Flexible plans for every <span class="highlight">campaign size</span></h2>
+  <div class="grid-3" style="margin-top:32px;max-width:900px;margin-left:auto;margin-right:auto">
+    <div class="price-card">
+      <h4 style="color:var(--muted);font-size:.85rem">WARD</h4>
+      <div class="price" style="color:var(--text)">₹5K</div>
+      <div class="period">per ward / election cycle</div>
+      <ul>
+        <li>1 ward (up to 2,000 voters)</li>
+        <li>Full analytics dashboard</li>
+        <li>PDF report generation</li>
+        <li>Voter classification</li>
+        <li>Field ops tracking</li>
+      </ul>
+      <button class="btn">Get Started</button>
+    </div>
+    <div class="price-card featured">
+      <h4 style="color:var(--muted);font-size:.85rem">CONSTITUENCY</h4>
+      <div class="price gradient-text">₹50K</div>
+      <div class="period">per constituency / election cycle</div>
+      <ul>
+        <li>Unlimited wards</li>
+        <li>9-level hierarchy navigation</li>
+        <li>Multi-ward aggregation</li>
+        <li>Historical election analysis</li>
+        <li>Vote share simulator</li>
+        <li>Priority support</li>
+      </ul>
+      <button class="btn">Contact Sales</button>
+    </div>
+    <div class="price-card">
+      <h4 style="color:var(--muted);font-size:.85rem">PARTY</h4>
+      <div class="price" style="color:var(--text)">Custom</div>
+      <div class="period">multi-constituency licensing</div>
+      <ul>
+        <li>All Constituency features</li>
+        <li>Unlimited constituencies</li>
+        <li>Custom branding</li>
+        <li>Training & deployment</li>
+        <li>Dedicated support team</li>
+        <li>Custom analytics modules</li>
+      </ul>
+      <button class="btn">Talk to Us</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ SLIDE 15: CLOSING -->
+<div class="slide" data-slide="14">
+  <div class="bg-glow orange"></div>
+  <div class="bg-glow purple"></div>
+  <div style="text-align:center">
+    <div class="cover-badge">⚡ ELECTION INTELLIGENCE</div>
+    <h1 style="margin:0 auto;max-width:800px">Stop guessing.<br><span class="gradient-text">Start winning.</span></h1>
+    <p style="text-align:center;margin:20px auto;max-width:600px;font-size:1.1rem">
+      Every vote counts. Every contact matters. Every booth has a formula.<br>
+      Let data drive your next victory.
+    </p>
+    <button class="cover-cta" onclick="window.open('http://127.0.0.1:5001','_blank')" style="margin-top:24px">🚀 Launch Live Demo</button>
+    <div style="margin-top:40px;display:flex;gap:40px;justify-content:center">
+      <div class="stat"><div class="num" style="color:var(--green);font-size:2rem">< 1 min</div><div class="label">PDF to Dashboard</div></div>
+      <div class="stat"><div class="num" style="color:var(--orange);font-size:2rem">30+</div><div class="label">Analytics Metrics</div></div>
+      <div class="stat"><div class="num" style="color:var(--blue);font-size:2rem">100%</div><div class="label">Offline & Secure</div></div>
+      <div class="stat"><div class="num" style="color:var(--purple);font-size:2rem">16</div><div class="label">Report Sections</div></div>
+    </div>
+    <p style="text-align:center;margin-top:40px;font-size:.9rem;color:var(--muted)">
+      Contact: <strong style="color:var(--text)">sales@electionintel.in</strong> &nbsp;|&nbsp; Demo: <strong style="color:var(--text)">http://127.0.0.1:5001</strong>
+    </p>
+  </div>
+</div>
+
+</div><!-- /deck -->
+
+<!-- Navigation -->
+<div class="nav" id="slideNav">
+  <button onclick="prevSlide()">‹</button>
+  <div class="dots" id="dots"></div>
+  <span class="counter" id="counter">1/15</span>
+  <button onclick="nextSlide()">›</button>
+</div>
+
+<script>
+let current = 0;
+const slides = document.querySelectorAll('.slide');
+const total = slides.length;
+
+function goSlide(n) {
+  if (n < 0 || n >= total) return;
+  slides[current].classList.remove('active');
+  slides[current].classList.add(n > current ? 'prev' : '');
+  current = n;
+  slides.forEach((s, i) => {
+    s.classList.remove('active', 'prev');
+    if (i === current) s.classList.add('active');
+    else if (i < current) s.classList.add('prev');
+  });
+  updateNav();
+}
+function nextSlide() { goSlide(current + 1); }
+function prevSlide() { goSlide(current - 1); }
+function updateNav() {
+  document.getElementById('counter').textContent = `${current + 1}/${total}`;
+  const dots = document.getElementById('dots');
+  dots.innerHTML = '';
+  for (let i = 0; i < total; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === current ? ' active' : '');
+    d.onclick = () => goSlide(i);
+    dots.appendChild(d);
+  }
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextSlide(); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); prevSlide(); }
+  if (e.key === 'Home') { e.preventDefault(); goSlide(0); }
+  if (e.key === 'End') { e.preventDefault(); goSlide(total - 1); }
+});
+// Touch/swipe
+let touchX = 0;
+document.addEventListener('touchstart', e => { touchX = e.touches[0].clientX; });
+document.addEventListener('touchend', e => {
+  const diff = e.changedTouches[0].clientX - touchX;
+  if (Math.abs(diff) > 60) { diff < 0 ? nextSlide() : prevSlide(); }
+});
+updateNav();
+</script>
+
+</body>
+</html>

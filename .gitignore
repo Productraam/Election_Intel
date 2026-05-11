@@ -1,0 +1,30 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# Local DB and uploaded data
+election_intel.db
+election_intel.db-journal
+saved_wards/*.json
+uploads/*
+!uploads/.gitkeep
+!saved_wards/.gitkeep
+
+# Env / secrets
+.env
+*.key
+*.pem
+
+# IDE
+.vscode/
+.idea/
+
+# Generated reports
+*.pdf
+!Election_Intelligence_Pitch_Deck.pdf
+
+# Logs
+*.log

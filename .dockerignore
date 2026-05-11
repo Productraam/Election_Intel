@@ -1,0 +1,46 @@
+# Build / VCS
+.git
+.gitignore
+.github
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+.venv
+venv
+env
+
+# IDE
+.vscode
+.idea
+*.code-workspace
+
+# Local data — mount these as volumes instead of baking them in
+election_intel.db
+saved_wards/*.json
+uploads/*
+
+# Tests & dev artifacts
+test_*.py
+bench_*.py
+*_test.py
+test_*.pdf
+*.log
+Khajuri_Report.pdf
+test_full_report.pdf
+test_api_report.pdf
+test_report.pdf
+
+# Pitch / docs (not needed at runtime)
+Election_Intelligence_Pitch_Deck.pdf
+pitch_deck.html
+pitch_deck_pdf.py
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Env (loaded via env_file, not COPY)
+.env

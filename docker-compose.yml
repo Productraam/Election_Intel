@@ -1,0 +1,39 @@
+version: "3.9"
+
+services:
+  app:
+    build: .
+    image: election-intel:latest
+    container_name: election-intel
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    env_file:
+      - .env
+    environment:
+      EI_HOST: 0.0.0.0
+      EI_PORT: 5001
+      EI_DEBUG: "0"
+    volumes:
+      # Persist DB + saved wards + uploads across container restarts
+      - ./saved_wards:/app/saved_wards
+      - ./uploads:/app/uploads
+      - ./election_intel.db:/app/election_intel.db
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:5001/api/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # Optional: nginx reverse proxy with TLS (uncomment to enable)
+  # nginx:
+  #   image: nginx:alpine
+  #   restart: unless-stopped
+  #   depends_on: [app]
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+  #     - ./deploy/certs:/etc/nginx/certs:ro

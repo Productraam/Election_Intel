@@ -1,0 +1,22 @@
+[Unit]
+Description=Election Intelligence (gunicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/election_intel
+EnvironmentFile=/opt/election_intel/.env
+ExecStart=/opt/election_intel/.venv/bin/gunicorn wsgi:app \
+    --bind 127.0.0.1:5001 \
+    --workers 2 \
+    --threads 4 \
+    --timeout 300 \
+    --access-logfile /var/log/election_intel/access.log \
+    --error-logfile  /var/log/election_intel/error.log
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
