@@ -11,13 +11,15 @@ from datetime import datetime, timezone
 
 
 # ── Configuration ────────────────────────────────────────────────────
+# Values are resolved dynamically via _cfg() so admin-managed DB settings
+# take precedence over env vars (set via the Server tab in the UI).
 
-WHATSAPP_PROVIDER = os.environ.get('WA_PROVIDER', 'meta')  # 'meta' or 'twilio'
-META_TOKEN = os.environ.get('WA_META_TOKEN', '')
-META_PHONE_ID = os.environ.get('WA_META_PHONE_ID', '')
-TWILIO_SID = os.environ.get('WA_TWILIO_SID', '')
-TWILIO_TOKEN = os.environ.get('WA_TWILIO_TOKEN', '')
-TWILIO_FROM = os.environ.get('WA_TWILIO_FROM', '')  # whatsapp:+14155238886
+def _cfg(key, default=''):
+    try:
+        from database import get_setting
+        return get_setting(key, default)
+    except Exception:
+        return os.environ.get(key, default)
 
 RATE_LIMIT = 20  # messages per second
 
@@ -122,12 +124,14 @@ def render_message(template_key, params):
 
 def _send_meta(phone_e164, template_key, rendered_text):
     """Send via Meta WhatsApp Business Cloud API."""
-    if not META_TOKEN or not META_PHONE_ID:
-        return {'success': False, 'error': 'Meta API not configured (set WA_META_TOKEN, WA_META_PHONE_ID)'}
+    meta_token = _cfg('WA_META_TOKEN')
+    meta_phone_id = _cfg('WA_META_PHONE_ID')
+    if not meta_token or not meta_phone_id:
+        return {'success': False, 'error': 'Meta API not configured (set WA_META_TOKEN, WA_META_PHONE_ID in Server settings)'}
 
-    url = f'https://graph.facebook.com/v18.0/{META_PHONE_ID}/messages'
+    url = f'https://graph.facebook.com/v18.0/{meta_phone_id}/messages'
     headers = {
-        'Authorization': f'Bearer {META_TOKEN}',
+        'Authorization': f'Bearer {meta_token}',
         'Content-Type': 'application/json',
     }
     payload = {
@@ -155,18 +159,21 @@ def _send_meta(phone_e164, template_key, rendered_text):
 
 def _send_twilio(phone_e164, template_key, rendered_text):
     """Send via Twilio WhatsApp."""
-    if not TWILIO_SID or not TWILIO_TOKEN or not TWILIO_FROM:
-        return {'success': False, 'error': 'Twilio not configured (set WA_TWILIO_SID, WA_TWILIO_TOKEN, WA_TWILIO_FROM)'}
+    sid = _cfg('WA_TWILIO_SID')
+    tok = _cfg('WA_TWILIO_TOKEN')
+    frm = _cfg('WA_TWILIO_FROM')
+    if not sid or not tok or not frm:
+        return {'success': False, 'error': 'Twilio not configured (set WA_TWILIO_SID, WA_TWILIO_TOKEN, WA_TWILIO_FROM in Server settings)'}
 
-    url = f'https://api.twilio.com/2010-04-01/Accounts/{TWILIO_SID}/Messages.json'
+    url = f'https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json'
     payload = {
-        'From': TWILIO_FROM,
+        'From': frm,
         'To': f'whatsapp:{phone_e164}',
         'Body': rendered_text,
     }
 
     try:
-        resp = http_requests.post(url, data=payload, auth=(TWILIO_SID, TWILIO_TOKEN), timeout=10)
+        resp = http_requests.post(url, data=payload, auth=(sid, tok), timeout=10)
         data = resp.json()
         if resp.status_code in (200, 201):
             return {
@@ -189,7 +196,7 @@ def send_rendered(phone, rendered_text):
         return {'success': False, 'error': f'Invalid phone: {phone}'}
     if not rendered_text:
         return {'success': False, 'error': 'Empty message body'}
-    if WHATSAPP_PROVIDER == 'twilio':
+    if _cfg('WA_PROVIDER', 'meta') == 'twilio':
         return _send_twilio(phone_e164, '', rendered_text)
     return _send_meta(phone_e164, '', rendered_text)
 
@@ -206,7 +213,7 @@ def send_message(phone, template_key, params):
     if not rendered:
         return {'success': False, 'error': f'Invalid template or params: {template_key}'}
 
-    if WHATSAPP_PROVIDER == 'twilio':
+    if _cfg('WA_PROVIDER', 'meta') == 'twilio':
         return _send_twilio(phone_e164, template_key, rendered)
     return _send_meta(phone_e164, template_key, rendered)
 
@@ -240,15 +247,16 @@ def send_bulk(recipients, template_key, common_params=None):
 
 def get_provider_status():
     """Check if WhatsApp provider is configured."""
-    if WHATSAPP_PROVIDER == 'meta':
-        configured = bool(META_TOKEN and META_PHONE_ID)
-    elif WHATSAPP_PROVIDER == 'twilio':
-        configured = bool(TWILIO_SID and TWILIO_TOKEN and TWILIO_FROM)
+    provider = _cfg('WA_PROVIDER', 'meta')
+    if provider == 'meta':
+        configured = bool(_cfg('WA_META_TOKEN') and _cfg('WA_META_PHONE_ID'))
+    elif provider == 'twilio':
+        configured = bool(_cfg('WA_TWILIO_SID') and _cfg('WA_TWILIO_TOKEN') and _cfg('WA_TWILIO_FROM'))
     else:
         configured = False
 
     return {
-        'provider': WHATSAPP_PROVIDER,
+        'provider': provider,
         'configured': configured,
         'templates': list(TEMPLATES.keys()),
     }

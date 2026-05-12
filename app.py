@@ -8,6 +8,15 @@ import io
 import json
 import re
 from datetime import datetime, timezone
+
+# Load .env file if present (for local dev / bare-metal deploys).
+# Must happen before any os.environ.get() calls.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'), override=False)
+except ImportError:
+    pass  # python-dotenv not installed; rely on real env vars
+
 from flask import Flask, request, jsonify, render_template, send_file, g
 from werkzeug.security import generate_password_hash, check_password_hash
 from voter_parser import VoterListParser
@@ -1848,6 +1857,143 @@ def auth_delete_user(uid):
     user.is_active = False
     db.session.commit()
     return jsonify({'success': True})
+
+
+# ─── Server / runtime config (admin only) ──────────────────────────
+
+def _mask_secret(val):
+    if not val:
+        return ''
+    s = str(val)
+    if len(s) <= 4:
+        return '••••'
+    return '••••' + s[-4:]
+
+
+@app.route('/api/admin/server/settings', methods=['GET'])
+@require_auth
+@require_role('admin')
+def admin_get_server_settings():
+    """Return the catalog of known settings with current values. Secrets
+    are masked unless ?reveal=1 is passed (and even then only for admin)."""
+    from database import SETTING_DEFS, ServerSetting
+    reveal = request.args.get('reveal') == '1'
+    rows = {r.key: r for r in ServerSetting.query.all()}
+    out = []
+    for spec in SETTING_DEFS:
+        row = rows.get(spec['key'])
+        raw = (row.value if row else '') or ''
+        from_env = (not raw) and bool(os.environ.get(spec['key']))
+        display = raw
+        if spec.get('is_secret') and raw and not reveal:
+            display = _mask_secret(raw)
+        out.append({
+            'key': spec['key'],
+            'group': spec.get('group', 'server'),
+            'label': spec.get('label', spec['key']),
+            'type': spec.get('type', 'text'),
+            'options': spec.get('options', []),
+            'help': spec.get('help', ''),
+            'is_secret': bool(spec.get('is_secret')),
+            'value': display,
+            'has_value': bool(raw),
+            'from_env_only': from_env,
+            'updated_at': row.updated_at.isoformat() if row and row.updated_at else None,
+        })
+    return jsonify({'settings': out, 'reveal': reveal})
+
+
+@app.route('/api/admin/server/settings', methods=['PUT'])
+@require_auth
+@require_role('admin')
+def admin_update_server_settings():
+    """Update one or more settings. Body: {settings: [{key, value}, ...]}
+    or a flat {key: value} dict. Empty string clears the value."""
+    from database import set_setting, SETTING_DEFS_BY_KEY
+    data = request.get_json(silent=True) or {}
+    items = data.get('settings')
+    if items is None:
+        # Accept flat {key:value}
+        items = [{'key': k, 'value': v} for k, v in data.items()]
+    saved, errors = [], []
+    for item in items:
+        key = (item.get('key') or '').strip()
+        if key not in SETTING_DEFS_BY_KEY:
+            errors.append({'key': key, 'error': 'unknown key'})
+            continue
+        val = item.get('value', '')
+        # Don't overwrite with a mask value
+        if isinstance(val, str) and val.startswith('••••'):
+            continue
+        try:
+            set_setting(key, val, user_id=getattr(g, 'user_id', None))
+            saved.append(key)
+            _log_audit('server_setting_update', field=key,
+                       new_val='(secret)' if SETTING_DEFS_BY_KEY[key].get('is_secret') else str(val)[:80])
+        except Exception as e:
+            errors.append({'key': key, 'error': str(e)})
+    return jsonify({'success': len(errors) == 0, 'saved': saved, 'errors': errors})
+
+
+@app.route('/api/admin/server/status', methods=['GET'])
+@require_auth
+@require_role('admin')
+def admin_server_status():
+    """Snapshot of runtime: DB engine, schema-managed flag, provider status,
+    upload paths, version info. Useful for admins after cloud deploy."""
+    from sqlalchemy import inspect as sa_inspect
+    import sys, platform
+    try:
+        from whatsapp import get_provider_status
+        wa = get_provider_status()
+    except Exception as e:
+        wa = {'provider': 'unknown', 'configured': False, 'error': str(e)}
+
+    db_url = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    # Hide credentials in postgres URL
+    safe_db_url = re.sub(r'://([^:]+):([^@]+)@', r'://\1:••••@', db_url)
+    try:
+        insp = sa_inspect(db.engine)
+        table_count = len(insp.get_table_names())
+        driver = db.engine.url.drivername
+    except Exception:
+        table_count = 0
+        driver = 'unknown'
+
+    return jsonify({
+        'db': {
+            'driver': driver,
+            'url': safe_db_url,
+            'tables': table_count,
+            'auto_migrate': True,
+        },
+        'whatsapp': wa,
+        'public_url': (request.host_url or '').rstrip('/'),
+        'configured_public_url': '',  # filled by client from settings
+        'python': sys.version.split()[0],
+        'platform': platform.platform(),
+        'uploads_dir': os.path.join(os.path.dirname(__file__), 'uploads'),
+        'saved_wards_dir': SAVE_DIR,
+    })
+
+
+@app.route('/api/admin/server/test-whatsapp', methods=['POST'])
+@require_auth
+@require_role('admin')
+def admin_test_whatsapp():
+    """Send a test WhatsApp message to a single number using current settings."""
+    data = request.get_json(silent=True) or {}
+    phone = (data.get('phone') or '').strip()
+    if not phone:
+        return jsonify({'success': False, 'error': 'phone required'}), 400
+    try:
+        from whatsapp import send_rendered
+        msg = (data.get('message')
+               or 'Election Intelligence test message — your WhatsApp settings are working.')
+        result = send_rendered(phone, msg)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 # ─── Karyakarta Management ─────────────────────────────────────────

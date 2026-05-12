@@ -718,12 +718,12 @@ def generate_pitch_deck():
     story.append(Spacer(1, 12))
 
     tech = [
-        ('💻', 'Runs Locally', 'No cloud dependency. All data stays on your machine.\nZero internet required after setup. Complete data sovereignty.'),
-        ('⚡', 'Blazing Fast', 'OCR ~1s/page. PDF report <1s. Dashboard loads\n18 analytics endpoints in parallel. No spinners.'),
-        ('🔒', 'Data Privacy', 'Voter data never leaves the local machine.\nNo cloud APIs, no external servers. ECI-compliant.'),
+        ('💻', 'Local or Cloud', 'Run fully offline on your laptop, or deploy to\nRailway / Render with one click.'),
+        ('⚡', 'Blazing Fast', 'OCR ~1s/page. PDF report <1s. Dashboard loads\n18 analytics endpoints in parallel.'),
+        ('🔒', 'Data Privacy', 'Voter data stays on your machine or in your\nown private cloud. No third-party storage.'),
         ('📱', 'Mobile Responsive', 'Dark-themed dashboard works on tablets and phones.\nField workers classify voters from mobile browser.'),
-        ('🐍', 'Python + Flask', 'Lightweight stack: PyMuPDF, Windows OCR,\nReportLab for PDF, Chart.js for visualizations.'),
-        ('💾', 'JSON Storage', 'No database needed. Ward data as JSON files.\nEasy backup, share, transfer between machines.'),
+        ('🗄️', 'SQLite or PostgreSQL', 'Uses SQLite out of the box. Switch to Postgres\nfor cloud by setting one env var. Auto-migrates.'),
+        ('🐍', 'Python + Flask', 'PyMuPDF, SQLAlchemy, ReportLab, Chart.js.\nLightweight, containerised, easy to self-host.'),
     ]
     
     tech_rows = []
@@ -749,13 +749,103 @@ def generate_pitch_deck():
     ]))
     story.append(tech_table)
     story.append(Spacer(1, 14))
-    stack_text = '  ·  '.join(['Python 3.13', 'Flask', 'PyMuPDF', 'WinOCR', 'ReportLab', 'Chart.js 4.4', 'JSON Storage'])
+    stack_text = '  ·  '.join(['Python 3.13', 'Flask', 'PyMuPDF', 'WinOCR', 'ReportLab', 'Chart.js 4.4', 'SQLAlchemy', 'Docker-ready'])
     story.append(Paragraph(
         f'<font color="#f97316"><b>Tech Stack:</b></font> {stack_text}', S['center']))
     story.append(PageBreak())
 
     # ─────────────────────────────────────────────────────────────
-    # SLIDE 11: COMPETITIVE COMPARISON
+    # SLIDE 11: DEPLOYMENT & SERVER SETTINGS
+    # ─────────────────────────────────────────────────────────────
+    story.append(Paragraph('DEPLOYMENT & INTEGRATIONS', S['section_label']))
+    story.append(Paragraph('Deploy anywhere. <font color="#f97316">Configure in the UI</font>', S['slide_title']))
+    story.append(Spacer(1, 10))
+
+    ps_deploy = ParagraphStyle('dp', parent=S['body'], fontSize=9, leading=13)
+    ps_deploy_sm = ParagraphStyle('dpsm', parent=S['body_sm'], fontSize=8)
+    ps_mono = ParagraphStyle('mono', parent=S['body_sm'], fontName='Courier', fontSize=8,
+                             textColor=TEAL, leading=13)
+
+    left_col = [
+        [Paragraph('<b>🖥️ Server Settings Tab</b>', ps_deploy)],
+        [Paragraph(
+            'Admin-only tab in the dashboard. Add or update API tokens, provider choices, '
+            'public URLs, and org branding — saved directly to the database. '
+            'Secrets are masked in the UI. Test WhatsApp delivery with one click. '
+            'No server restart required.',
+            ps_deploy_sm)],
+        [Spacer(1, 8)],
+        [Paragraph('<b>🗄️ Database — Zero Manual Steps</b>', ps_deploy)],
+        [Paragraph(
+            'All tables are created and migrated automatically on startup. '
+            'SQLite is the default — works with no config. '
+            'Switch to PostgreSQL by setting DATABASE_URL on the host.',
+            ps_deploy_sm)],
+    ]
+    left_t = Table(left_col, colWidths=[half_w - 10])
+    left_t.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), CARD),
+        ('GRID', (0, 0), (-1, -1), 0.5, BORDER),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('LEFTPADDING', (0, 0), (-1, -1), 12),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 12),
+    ]))
+
+    G2 = '<font color="#22c55e">✓</font>'
+    X2 = '<font color="#ef4444">✗</font>'
+    hosting_header = ['Platform', 'Setup', 'Database', 'Cost']
+    hosting_rows = [
+        ['Railway', f'{G2} ~5 min', 'Postgres add-on', 'Free tier'],
+        ['Render',  f'{G2} ~5 min', 'Postgres add-on', 'Free tier'],
+        ['Fly.io',  f'{G2} ~10 min', 'Postgres add-on', 'Free tier'],
+        ['VPS/VM',  '◐ ~30 min', 'SQLite on disk', '₹400/mo+'],
+    ]
+    ps_ht = ParagraphStyle('ht', parent=S['body'], fontSize=8.5, leading=11)
+    ps_hh = ParagraphStyle('hh', parent=S['body_sm'], textColor=MUTED, fontName='Helvetica-Bold')
+    hosting_fmt = [[Paragraph(c, ps_hh) for c in hosting_header]]
+    hosting_fmt += [[Paragraph(c, ps_ht) for c in r] for r in hosting_rows]
+    hosting_t = Table(hosting_fmt, colWidths=[90, 70, 130, 80])
+    hosting_t.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), SURFACE),
+        ('BACKGROUND', (0, 1), (-1, -1), CARD),
+        ('GRID', (0, 0), (-1, -1), 0.5, BORDER),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [CARD, DARK_CARD_BG]),
+    ]))
+
+    env_lines = [
+        'EI_SECRET_KEY   — JWT signing secret',
+        'DATABASE_URL    — postgresql://… (optional)',
+        'WA_META_TOKEN   — WhatsApp bearer token',
+        'WA_META_PHONE_ID— Meta phone number ID',
+    ]
+    right_inner = [
+        [Paragraph('<b>☁️ Cloud Hosting Options</b>', ps_deploy)],
+        [hosting_t],
+        [Spacer(1, 8)],
+        [Paragraph('<b>🔑 Required Env Vars (set once on host)</b>', ps_deploy)],
+    ] + [[Paragraph(line, ps_mono)] for line in env_lines]
+
+    right_t = Table(right_inner, colWidths=[half_w - 10])
+    right_t.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), CARD),
+        ('GRID', (0, 0), (-1, -1), 0.5, BORDER),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('LEFTPADDING', (0, 0), (-1, -1), 12),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 12),
+    ]))
+
+    deploy_outer = Table([[left_t, right_t]], colWidths=[half_w, half_w])
+    deploy_outer.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP'), ('LEFTPADDING', (0,0),(-1,-1),0), ('RIGHTPADDING', (0,0),(-1,-1),0)]))
+    story.append(deploy_outer)
+    story.append(PageBreak())
+
+    # ─────────────────────────────────────────────────────────────
+    # SLIDE 12: COMPETITIVE COMPARISON
     # ─────────────────────────────────────────────────────────────
     story.append(Paragraph('COMPETITIVE ADVANTAGE', S['section_label']))
     story.append(Paragraph('Why Election Intelligence <font color="#f97316">wins</font>', S['slide_title']))
@@ -771,11 +861,11 @@ def generate_pitch_deck():
         ['Auto Caste/Community Mapping', f'{G} 60+ surnames', f'{X}', f'{X}'],
         ['Family/Household Detection', f'{G} Auto-grouped', f'{X}', f'{X}'],
         ['Booth-Level Winning Formula', f'{G} Per-booth', f'{H} Manual calc', f'{X}'],
-        ['Caste Arithmetic Strategy', f'{G} Auto-recommend', f'{H} Basic', f'{X}'],
-        ['3-Contact Priority Planning', f'{G} Prioritized', f'{X}', f'{H} Generic'],
-        ['Election Day Time Slots', f'{G} Auto-assigned', f'{X}', f'{X}'],
+        ['WhatsApp Outreach + Karyakarta Mgmt', f'{G} Built-in', f'{X}', f'{H} Separate tool'],
+        ['Work Assignment & Progress Tracking', f'{G} With dashboards', f'{X}', f'{H} Basic'],
+        ['UI-Configurable Tokens / Server Tab', f'{G} Admin UI', f'{X}', f'{H} DevOps only'],
+        ['Auto DB Schema Migration', f'{G} On startup', f'{X}', f'{H} Manual SQL'],
         ['9-Level Hierarchy Drill-down', f'{G}', f'{X}', f'{X}'],
-        ['Offline / Local-Only', f'{G} 100% local', f'{G} Local', f'{X} Cloud'],
         ['16-Section PDF Report', f'{G} One-click', f'{X}', f'{X}'],
     ]
     

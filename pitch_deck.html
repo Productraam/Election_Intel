@@ -653,8 +653,8 @@
   <div class="grid-3" style="margin-top:32px">
     <div class="fcard glow" style="text-align:center">
       <span class="icon">💻</span>
-      <h4>Runs Locally</h4>
-      <p>No cloud dependency. All data stays on your machine. Zero internet required after setup. Complete data sovereignty.</p>
+      <h4>Local or Cloud</h4>
+      <p>Run fully offline on your laptop, or deploy to Railway / Render with one click. Data sovereignty is always your choice.</p>
     </div>
     <div class="fcard glow" style="text-align:center">
       <span class="icon">⚡</span>
@@ -664,7 +664,7 @@
     <div class="fcard glow" style="text-align:center">
       <span class="icon">🔒</span>
       <h4>Data Privacy</h4>
-      <p>Voter data never leaves the local machine. No cloud APIs, no external servers. Fully ECI-compliant data handling.</p>
+      <p>Voter data stays local or in your own private cloud. No third-party cloud APIs involved in data storage.</p>
     </div>
     <div class="fcard glow" style="text-align:center">
       <span class="icon">📱</span>
@@ -672,14 +672,14 @@
       <p>Dark-themed dashboard works on tablets and phones. Field workers can classify voters from their mobile browser.</p>
     </div>
     <div class="fcard glow" style="text-align:center">
-      <span class="icon">🐍</span>
-      <h4>Python + Flask</h4>
-      <p>Lightweight stack. PyMuPDF for PDF, Windows OCR for images, ReportLab for reports, Chart.js for visualizations.</p>
+      <span class="icon">🗄️</span>
+      <h4>SQLite or PostgreSQL</h4>
+      <p>Uses SQLite out of the box — zero config. Switch to PostgreSQL for cloud by setting one env var. Schema auto-migrates on startup.</p>
     </div>
     <div class="fcard glow" style="text-align:center">
-      <span class="icon">💾</span>
-      <h4>JSON Storage</h4>
-      <p>No database needed. Ward data saved as JSON files. Easy backup, share, and transfer between machines.</p>
+      <span class="icon">🐍</span>
+      <h4>Python + Flask</h4>
+      <p>Lightweight stack: PyMuPDF · Windows OCR · SQLAlchemy · ReportLab · Chart.js. Easy to self-host or containerise.</p>
     </div>
   </div>
   <div style="margin-top:24px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
@@ -689,7 +689,62 @@
     <span class="tag tag-purple">WinOCR</span>
     <span class="tag tag-teal">ReportLab</span>
     <span class="tag tag-orange">Chart.js</span>
-    <span class="tag tag-green">JSON Storage</span>
+    <span class="tag tag-green">SQLAlchemy</span>
+    <span class="tag tag-blue">Docker-ready</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ SLIDE 12b: DEPLOY -->
+<div class="slide" data-slide="12">
+  <div class="bg-glow blue"></div>
+  <div class="section-num">DEPLOYMENT &amp; INTEGRATIONS</div>
+  <h2>Deploy anywhere. <span class="highlight">Configure in the UI</span></h2>
+  <div class="split" style="margin-top:24px">
+    <div>
+      <p style="margin-bottom:16px">After hosting, admins configure every integration from the built-in <strong>Server Settings</strong> tab — no server restarts, no file editing.</p>
+      <div class="fcard glow" style="margin-bottom:12px">
+        <h4>🖥️ Server Settings Tab</h4>
+        <p>Admin-only tab in the dashboard. Add/update any key and save to database. Secrets are masked in the UI. Test WhatsApp with one click.</p>
+        <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+          <span class="tag tag-blue">WhatsApp Token</span>
+          <span class="tag tag-green">Meta Phone ID</span>
+          <span class="tag tag-purple">Twilio SID</span>
+          <span class="tag tag-teal">Public URL</span>
+          <span class="tag tag-orange">Org Name</span>
+          <span class="tag tag-blue">SMS API Key</span>
+        </div>
+      </div>
+      <div class="fcard glow">
+        <h4>🗄️ Database — Zero Manual Steps</h4>
+        <p>All tables are created and migrated automatically when the app starts. No <code>CREATE TABLE</code> statements, no migration scripts to run manually.</p>
+        <div style="margin-top:8px">
+          <div style="font-size:.82rem;color:var(--green)">✓ SQLite (default) — works out of the box</div>
+          <div style="font-size:.82rem;color:var(--blue);margin-top:4px">✓ PostgreSQL — set <code>DATABASE_URL</code> env var and restart</div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="fcard glow" style="margin-bottom:12px">
+        <h4>☁️ Hosting Options</h4>
+        <table class="ptable" style="margin-top:8px;font-size:.82rem">
+          <tr><th>Platform</th><th>Setup Time</th><th>DB</th><th>Cost</th></tr>
+          <tr><td>Railway</td><td style="color:var(--green)">~5 min</td><td>Postgres add-on</td><td>Free tier</td></tr>
+          <tr><td>Render</td><td style="color:var(--green)">~5 min</td><td>Postgres add-on</td><td>Free tier</td></tr>
+          <tr><td>Fly.io</td><td style="color:var(--blue)">~10 min</td><td>Postgres add-on</td><td>Free tier</td></tr>
+          <tr><td>VPS / VM</td><td style="color:var(--orange)">~30 min</td><td>SQLite on disk</td><td>₹400/mo+</td></tr>
+        </table>
+      </div>
+      <div class="fcard glow">
+        <h4>🔑 Required Env Vars</h4>
+        <p style="font-size:.8rem;color:var(--muted);margin-bottom:8px">Set once on the host; change any time from the UI:</p>
+        <div style="font-family:ui-monospace,monospace;font-size:.78rem;line-height:1.7">
+          <div><span style="color:var(--muted)">EI_SECRET_KEY</span> — JWT signing secret</div>
+          <div><span style="color:var(--muted)">DATABASE_URL</span> — postgres://… (optional)</div>
+          <div><span style="color:var(--muted)">WA_META_TOKEN</span> — WhatsApp bearer token</div>
+          <div><span style="color:var(--muted)">WA_META_PHONE_ID</span> — Meta phone number ID</div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -710,10 +765,12 @@
     <tr><td>Family/Household Detection</td><td style="text-align:center;color:var(--green);font-weight:700">✓ Auto</td><td style="text-align:center;color:var(--red)">✗</td><td style="text-align:center;color:var(--red)">✗</td></tr>
     <tr><td>Booth-Level Winning Formula</td><td style="text-align:center;color:var(--green);font-weight:700">✓ Per-booth</td><td style="text-align:center;color:var(--yellow)">◐ Manual</td><td style="text-align:center;color:var(--red)">✗</td></tr>
     <tr><td>Caste Arithmetic Strategy</td><td style="text-align:center;color:var(--green);font-weight:700">✓ Auto-recommend</td><td style="text-align:center;color:var(--yellow)">◐ Basic</td><td style="text-align:center;color:var(--red)">✗</td></tr>
+    <tr><td>WhatsApp Outreach + Karyakarta Mgmt</td><td style="text-align:center;color:var(--green);font-weight:700">✓ Built-in</td><td style="text-align:center;color:var(--red)">✗</td><td style="text-align:center;color:var(--yellow)">◐ Separate tool</td></tr>
+    <tr><td>Work Assignment &amp; Progress Tracking</td><td style="text-align:center;color:var(--green);font-weight:700">✓ With dashboards</td><td style="text-align:center;color:var(--red)">✗</td><td style="text-align:center;color:var(--yellow)">◐ Basic</td></tr>
     <tr><td>3-Contact Priority Planning</td><td style="text-align:center;color:var(--green);font-weight:700">✓ Prioritized</td><td style="text-align:center;color:var(--red)">✗</td><td style="text-align:center;color:var(--yellow)">◐ Generic</td></tr>
-    <tr><td>Election Day Time Slots</td><td style="text-align:center;color:var(--green);font-weight:700">✓ Auto-assigned</td><td style="text-align:center;color:var(--red)">✗</td><td style="text-align:center;color:var(--red)">✗</td></tr>
+    <tr><td>UI-Configurable Tokens/DB (Server tab)</td><td style="text-align:center;color:var(--green);font-weight:700">✓ Admin UI</td><td style="text-align:center;color:var(--red)">✗</td><td style="text-align:center;color:var(--yellow)">◐ DevOps only</td></tr>
+    <tr><td>Auto DB Schema Migration</td><td style="text-align:center;color:var(--green);font-weight:700">✓ On startup</td><td style="text-align:center;color:var(--red)">✗</td><td style="text-align:center;color:var(--yellow)">◐ Manual SQL</td></tr>
     <tr><td>9-Level Hierarchy Drill-down</td><td style="text-align:center;color:var(--green);font-weight:700">✓</td><td style="text-align:center;color:var(--red)">✗</td><td style="text-align:center;color:var(--red)">✗</td></tr>
-    <tr><td>Offline / Local-Only</td><td style="text-align:center;color:var(--green);font-weight:700">✓ 100% local</td><td style="text-align:center;color:var(--green)">✓</td><td style="text-align:center;color:var(--red)">✗ Cloud</td></tr>
     <tr><td>16-Section PDF Report</td><td style="text-align:center;color:var(--green);font-weight:700">✓ One-click</td><td style="text-align:center;color:var(--red)">✗</td><td style="text-align:center;color:var(--red)">✗</td></tr>
   </table>
 </div>
@@ -798,7 +855,7 @@
 <div class="nav" id="slideNav">
   <button onclick="prevSlide()">‹</button>
   <div class="dots" id="dots"></div>
-  <span class="counter" id="counter">1/15</span>
+  <span class="counter" id="counter">1/16</span>
   <button onclick="nextSlide()">›</button>
 </div>
 

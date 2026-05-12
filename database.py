@@ -546,6 +546,7 @@ def init_db(app):
         _seed_admin(app)
         _seed_builtin_field_defs()
         _seed_builtin_templates()
+        _seed_server_settings()
 
 
 def _migrate_schema():
@@ -606,6 +607,116 @@ def _migrate_schema():
             db.session.commit()
     except Exception:
         db.session.rollback()
+
+
+# ── Server settings (admin-managed runtime config) ───────────────────
+
+class ServerSetting(db.Model):
+    """Admin-managed runtime configuration. Stores API tokens, provider
+    choices, public URLs, org branding etc. so the deployment can be
+    configured from the UI without redeploying / editing env vars."""
+    __tablename__ = 'server_settings'
+    key = db.Column(db.String(80), primary_key=True)
+    value = db.Column(db.Text, default='')
+    is_secret = db.Column(db.Boolean, default=False)
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
+                           onupdate=lambda: datetime.now(timezone.utc))
+    updated_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+
+
+# Catalog of known settings: shown to the admin even if unset in DB.
+SETTING_DEFS = [
+    # WhatsApp
+    {'key': 'WA_PROVIDER',      'group': 'whatsapp', 'label': 'Provider',
+     'type': 'select', 'options': ['meta', 'twilio'], 'default': 'meta', 'is_secret': False,
+     'help': 'Choose Meta Cloud API or Twilio for WhatsApp delivery.'},
+    {'key': 'WA_META_TOKEN',    'group': 'whatsapp', 'label': 'Meta Cloud API Token',
+     'type': 'password', 'is_secret': True,
+     'help': 'Bearer token from Meta WhatsApp Business → System Users.'},
+    {'key': 'WA_META_PHONE_ID', 'group': 'whatsapp', 'label': 'Meta Phone Number ID',
+     'type': 'text', 'is_secret': False,
+     'help': 'Numeric ID of the WhatsApp Business phone number.'},
+    {'key': 'WA_TWILIO_SID',    'group': 'whatsapp', 'label': 'Twilio Account SID',
+     'type': 'text', 'is_secret': False},
+    {'key': 'WA_TWILIO_TOKEN',  'group': 'whatsapp', 'label': 'Twilio Auth Token',
+     'type': 'password', 'is_secret': True},
+    {'key': 'WA_TWILIO_FROM',   'group': 'whatsapp', 'label': 'Twilio WhatsApp From',
+     'type': 'text', 'is_secret': False,
+     'help': 'e.g. whatsapp:+14155238886'},
+    # SMS (optional second channel)
+    {'key': 'SMS_PROVIDER',     'group': 'sms', 'label': 'SMS Provider',
+     'type': 'select', 'options': ['', 'twilio', 'msg91', 'textlocal'], 'default': '', 'is_secret': False},
+    {'key': 'SMS_API_KEY',      'group': 'sms', 'label': 'SMS API Key',
+     'type': 'password', 'is_secret': True},
+    {'key': 'SMS_SENDER_ID',    'group': 'sms', 'label': 'SMS Sender ID',
+     'type': 'text', 'is_secret': False},
+    # Server / branding
+    {'key': 'EI_PUBLIC_URL',    'group': 'server', 'label': 'Public URL',
+     'type': 'text', 'is_secret': False,
+     'help': 'External URL where this app is reachable (used in share links).'},
+    {'key': 'EI_ORG_NAME',      'group': 'server', 'label': 'Organisation Name',
+     'type': 'text', 'is_secret': False},
+    {'key': 'EI_SUPPORT_EMAIL', 'group': 'server', 'label': 'Support Email',
+     'type': 'text', 'is_secret': False},
+]
+SETTING_DEFS_BY_KEY = {d['key']: d for d in SETTING_DEFS}
+
+
+def get_setting(key, default=''):
+    """Get a runtime setting: DB value > env var > default. Safe to call
+    outside an app context (returns env/default in that case)."""
+    try:
+        row = ServerSetting.query.filter_by(key=key).first()
+        if row and row.value not in (None, ''):
+            return row.value
+    except Exception:
+        pass
+    env = os.environ.get(key)
+    if env not in (None, ''):
+        return env
+    spec = SETTING_DEFS_BY_KEY.get(key) or {}
+    return spec.get('default', default)
+
+
+def set_setting(key, value, user_id=None):
+    """Upsert a server setting. Returns the row."""
+    spec = SETTING_DEFS_BY_KEY.get(key)
+    if not spec:
+        raise ValueError(f'Unknown setting key: {key}')
+    row = ServerSetting.query.filter_by(key=key).first()
+    if row is None:
+        row = ServerSetting(key=key, is_secret=bool(spec.get('is_secret')))
+        db.session.add(row)
+    row.value = '' if value is None else str(value)
+    row.is_secret = bool(spec.get('is_secret'))
+    row.updated_by = user_id
+    row.updated_at = datetime.now(timezone.utc)
+    db.session.commit()
+    return row
+
+
+def _seed_server_settings():
+    """Ensure every known setting key has a row (empty value if unset).
+    Backfills value from env on first run so existing env-based deployments
+    keep working without manual entry."""
+    changed = False
+    for spec in SETTING_DEFS:
+        key = spec['key']
+        row = ServerSetting.query.filter_by(key=key).first()
+        if row is None:
+            env_val = os.environ.get(key, '')
+            row = ServerSetting(
+                key=key,
+                value=str(env_val) if env_val else '',
+                is_secret=bool(spec.get('is_secret')),
+            )
+            db.session.add(row)
+            changed = True
+    if changed:
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
 
 
 def _seed_admin(app):
