@@ -33,11 +33,11 @@ EXPOSE 5001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD curl -fsS http://127.0.0.1:5001/api/status || exit 1
 
-# 2 workers, 4 threads per worker = 8 concurrent requests.
-# Bump --workers on CPU-heavy hosts; OCR is CPU-bound.
+# 1 worker + 4 threads is safe with NullPool (Supabase shared pooler).
+# Increase --workers only if you have a dedicated Postgres connection pool.
 CMD ["gunicorn", "wsgi:app", \
      "--bind", "0.0.0.0:5001", \
-     "--workers", "2", \
+     "--workers", "1", \
      "--threads", "4", \
      "--timeout", "300", \
      "--access-logfile", "-", \

@@ -534,19 +534,88 @@ class WorkAssignment(db.Model):
 
 # ── Init helper ──────────────────────────────────────────────────────
 
+def _build_db_url():
+    """Resolve and normalise the database URL.
+    
+    Fixes applied:
+    - Render / Heroku export DATABASE_URL as `postgres://` (old libpq style);
+      SQLAlchemy 2.x requires `postgresql+psycopg2://`.
+    - Supabase pooler requires SSL from cloud hosts; we add sslmode=require
+      unless the caller already included an sslmode param.
+    """
+    url = os.environ.get('DATABASE_URL', '')
+    if not url:
+        # Default: local SQLite next to app.py
+        return 'sqlite:///' + os.path.join(os.path.dirname(__file__), 'election_intel.db')
+
+    # Fix scheme: postgres:// → postgresql+psycopg2://
+    if url.startswith('postgres://'):
+        url = 'postgresql+psycopg2://' + url[len('postgres://'):]
+    elif url.startswith('postgresql://'):
+        url = 'postgresql+psycopg2://' + url[len('postgresql://'):]
+
+    # Add sslmode=require for Supabase / cloud Postgres if not already set
+    if 'postgresql' in url and 'sslmode' not in url:
+        sep = '&' if '?' in url else '?'
+        url += sep + 'sslmode=require'
+
+    return url
+
+
 def init_db(app):
-    """Initialize database and create tables."""
-    db_url = os.environ.get('DATABASE_URL', 'sqlite:///' + os.path.join(os.path.dirname(__file__), 'election_intel.db'))
+    """Initialize database and create tables.
+    
+    Multi-worker safe: uses a file-based lock (SQLite) or pg_try_advisory_lock
+    so that only one gunicorn worker runs create_all + seed at a time.
+    """
+    db_url = _build_db_url()
     app.config['SQLALCHEMY_DATABASE_URI'] = db_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    # Use a connection pool appropriate for the backend
+    if 'postgresql' in db_url:
+        # Supabase shared pooler works best with NullPool in multi-worker setups
+        from sqlalchemy.pool import NullPool
+        app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+            'poolclass': NullPool,
+            'connect_args': {'connect_timeout': 10},
+        }
     db.init_app(app)
     with app.app_context():
+        _safe_init()
+
+
+def _safe_init():
+    """Run schema creation and seeding with a best-effort advisory lock so
+    multiple gunicorn workers don't race on startup."""
+    from sqlalchemy import text
+    engine = db.engine
+    is_pg = 'postgresql' in str(engine.url)
+    locked = False
+    conn = None
+    try:
+        if is_pg:
+            conn = engine.connect()
+            # pg_try_advisory_lock returns true if we got the lock
+            row = conn.execute(text("SELECT pg_try_advisory_lock(199726412)"))
+            locked = row.scalar()
+            if not locked:
+                # Another worker is initialising — just wait briefly then return
+                import time; time.sleep(3)
+                conn.close()
+                return
         db.create_all()
         _migrate_schema()
-        _seed_admin(app)
+        _seed_admin_inner()
         _seed_builtin_field_defs()
         _seed_builtin_templates()
         _seed_server_settings()
+    finally:
+        if is_pg and locked and conn:
+            try:
+                conn.execute(text("SELECT pg_advisory_unlock(199726412)"))
+            except Exception:
+                pass
+            conn.close()
 
 
 def _migrate_schema():
@@ -720,6 +789,11 @@ def _seed_server_settings():
 
 
 def _seed_admin(app):
+    """Compatibility wrapper — calls _seed_admin_inner (app arg ignored)."""
+    _seed_admin_inner()
+
+
+def _seed_admin_inner():
     """Create default admin user if none exists."""
     from werkzeug.security import generate_password_hash
     if User.query.count() == 0:

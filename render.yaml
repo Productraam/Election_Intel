@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: election-intel
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 300 --access-logfile - --error-logfile -
+    envVars:
+      - key: DATABASE_URL
+        sync: false          # Set manually in Render dashboard — your Supabase URL
+      - key: EI_SECRET_KEY
+        generateValue: true  # Render auto-generates a secure random value
+      - key: EI_DEBUG
+        value: "0"
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      # WhatsApp (set in Render dashboard or via the Server tab after deploy)
+      - key: WA_PROVIDER
+        value: meta
+      - key: WA_META_TOKEN
+        sync: false
+      - key: WA_META_PHONE_ID
+        sync: false
