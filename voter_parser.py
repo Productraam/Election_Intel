@@ -211,13 +211,26 @@ class VoterListParser:
                 pass  # some other import error — fall back to Tesseract
 
         if backend is None:
+            # Google Cloud Vision — works on any platform, fastest cloud option
+            try:
+                from database import get_setting as _gs
+                _gv_key = _gs('GOOGLE_VISION_API_KEY', '') or ''
+            except Exception:
+                import os as _os
+                _gv_key = _os.environ.get('GOOGLE_VISION_API_KEY', '') or ''
+            if _gv_key:
+                backend = 'google_vision'
+                _vision_key = _gv_key
+                print("  [OCR] Using Google Cloud Vision API.", flush=True)
+
+        if backend is None:
             try:
                 import pytesseract  # noqa: F401
                 backend = 'tesseract'
             except Exception:
                 raise RuntimeError(
-                    "No OCR backend available. Install 'winocr' (Windows) or "
-                    "'pytesseract' + Tesseract binary (Linux/macOS/Render)."
+                    "No OCR backend available. Install 'winocr' (Windows), set "
+                    "GOOGLE_VISION_API_KEY, or install 'pytesseract' + Tesseract binary."
                 )
 
         # ── Render all pages to PIL images first (fast, CPU-light) ─
@@ -245,6 +258,42 @@ class VoterListParser:
             results = asyncio.run(_ocr_all_async())
             if progress_callback:
                 progress_callback(pages_to_process, pages_to_process, 'winocr')
+
+        elif backend == 'google_vision':
+            import base64, requests as _req, io as _io2
+            VISION_URL = f'https://vision.googleapis.com/v1/images:annotate?key={_vision_key}'
+            BATCH = 16  # Vision API max per request
+            done_gv = [0]
+            for b_start in range(0, pages_to_process, BATCH):
+                batch_imgs = images[b_start:b_start + BATCH]
+                req_list = []
+                for img in batch_imgs:
+                    buf = _io2.BytesIO()
+                    img.save(buf, format='PNG')
+                    req_list.append({
+                        'image': {'content': base64.b64encode(buf.getvalue()).decode()},
+                        'features': [{'type': 'DOCUMENT_TEXT_DETECTION'}],
+                        'imageContext': {'languageHints': ['hi', 'en']},
+                    })
+                try:
+                    resp = _req.post(VISION_URL, json={'requests': req_list}, timeout=60)
+                    resp.raise_for_status()
+                    for i, ann in enumerate(resp.json().get('responses', [])):
+                        results[b_start + i] = (ann.get('fullTextAnnotation') or {}).get('text', '')
+                        done_gv[0] += 1
+                        print(f"  OCR {done_gv[0]}/{pages_to_process} pages (google_vision)", flush=True)
+                        if progress_callback:
+                            progress_callback(done_gv[0], pages_to_process, 'vision')
+                except Exception as _gve:
+                    print(f"  [OCR] Google Vision batch failed: {_gve} — falling back to Tesseract for these pages", flush=True)
+                    # Fallback: tesseract for this batch
+                    import pytesseract
+                    lang = self._tess_lang(); cfg = self._TESS_CFG
+                    for i, img in enumerate(batch_imgs):
+                        results[b_start + i] = pytesseract.image_to_string(img, lang=lang, config=cfg)
+                        done_gv[0] += 1
+                        if progress_callback:
+                            progress_callback(done_gv[0], pages_to_process, 'ocr')
 
         else:
             # Tesseract: spawns a subprocess per page → use threads for parallelism

@@ -727,6 +727,10 @@ SETTING_DEFS = [
      'type': 'text', 'is_secret': False},
     {'key': 'EI_SUPPORT_EMAIL', 'group': 'server', 'label': 'Support Email',
      'type': 'text', 'is_secret': False},
+    # OCR
+    {'key': 'GOOGLE_VISION_API_KEY', 'group': 'ocr', 'label': 'Google Cloud Vision API Key',
+     'type': 'password', 'is_secret': True,
+     'help': 'Enables fast cloud OCR for scanned voter PDFs (1,000 pages/month free). Get key at console.cloud.google.com → Vision API → Credentials.'},
 ]
 SETTING_DEFS_BY_KEY = {d['key']: d for d in SETTING_DEFS}
 
