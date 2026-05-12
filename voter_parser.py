@@ -86,11 +86,10 @@ class VoterListParser:
 
     # ─── Public Parse Methods ───────────────────────────────────────
 
-    def parse_pdf_stream(self, stream, max_pages=None):
+    def parse_pdf_stream(self, stream, max_pages=None, progress_callback=None):
         """Parse PDF voter list from file stream.
         Handles both text-based and image-based (scanned) ECI PDFs.
-        Uses OCR (EasyOCR) for image-based PDFs.
-        max_pages: limit how many pages to OCR (None = all).
+        progress_callback(done, total, msg) — called after each page OCR'd.
         """
         import fitz  # PyMuPDF
 
@@ -105,35 +104,36 @@ class VoterListParser:
                 break
 
         full_text = ""
+        page1_text = ""
 
         if is_image_pdf:
-            # OCR path: render pages to images, run EasyOCR
-            full_text = self._ocr_pdf(doc, max_pages=max_pages)
-            # OCR page 1 at higher DPI for cover-page metadata (numbers get lost at 150 DPI)
-            page1_text = self._ocr_page1_hq(doc)
+            # OCR path: parallel rendering + OCR
+            full_text = self._ocr_pdf(doc, max_pages=max_pages,
+                                       progress_callback=progress_callback)
+            # page 1 text is already in self._page_texts[0] — reuse it
+            page1_text = self._page_texts[0] if self._page_texts else ""
         else:
-            # Text-based PDF: extract text directly
+            # Text-based PDF: extract text directly (instant)
             self._page_texts = []
-            for page in doc:
-                page_text = page.get_text()
-                self._page_texts.append(page_text)
-                full_text += page_text + "\n"
+            n = min(max_pages, total_pages) if max_pages else total_pages
+            for i in range(n):
+                pt = doc[i].get_text()
+                self._page_texts.append(pt)
+                full_text += pt + "\n"
+                if progress_callback:
+                    progress_callback(i + 1, n, 'text')
             page1_text = doc[0].get_text() if total_pages > 0 else ""
 
         doc.close()
 
         self._extract_metadata(full_text)
-        # Page 1 at higher DPI fills in any missing values (numbers get lost at 150 DPI)
         if page1_text:
             self._extract_page1_details(page1_text, fill_only=True)
         self.metadata['source_format'] = 'pdf'
         self.metadata['total_pages'] = total_pages
         self.metadata['ocr_used'] = is_image_pdf
 
-        # Parse the ECI electoral roll format
         self._parse_eci_roll_format(full_text)
-
-        # Fallback strategies
         if not self.voters:
             self._parse_eci_box_text(full_text)
         if not self.voters:
@@ -142,11 +142,37 @@ class VoterListParser:
         self._post_process()
         return self.voters
 
-    def _ocr_pdf(self, doc, dpi=150, max_pages=None):
-        """OCR all pages. Uses Windows native OCR (winocr) when available
-        (~0.6s/page on Windows); falls back to Tesseract (pytesseract) on
-        Linux/macOS or when winocr is unavailable. Returns the joined text
-        and stores per-page texts in self._page_texts."""
+    # ── Tesseract config ───────────────────────────────────────────
+    # --oem 1  : LSTM engine only (fastest, most accurate for printed text)
+    # --psm 4  : single column of text (voter lists are column-formatted)
+    # lang     : try Hindi+English; fall back to English-only
+    _TESS_CFG = r'--oem 1 --psm 4'
+    _TESS_LANG = 'hin+eng'  # Hindi+English covers most Indian voter lists
+    _TESS_LANG_FALLBACK = 'eng'
+    _TESS_LANG_OK = None  # cached: True/False/None
+
+    @classmethod
+    def _tess_lang(cls):
+        """Return best available Tesseract language string."""
+        if cls._TESS_LANG_OK is None:
+            try:
+                import pytesseract
+                langs = pytesseract.get_languages(config='')
+                cls._TESS_LANG_OK = 'hin' in langs
+            except Exception:
+                cls._TESS_LANG_OK = False
+        return cls._TESS_LANG if cls._TESS_LANG_OK else cls._TESS_LANG_FALLBACK
+
+    def _ocr_pdf(self, doc, dpi=120, max_pages=None, progress_callback=None):
+        """OCR all pages in parallel.
+
+        Backends (auto-detected, fastest first):
+          winocr   — Windows native OCR, ~0.6s/page, async
+          tesseract — cross-platform, parallel via ThreadPoolExecutor
+
+        DPI 120 is sufficient for voter-list fonts; use 150 for page 1
+        (metadata text is smaller).
+        """
         from PIL import Image
         import io as _io
         import time
@@ -154,78 +180,115 @@ class VoterListParser:
         pages_to_process = min(max_pages or len(doc), len(doc))
         start_time = time.time()
 
-        # Detect OCR backend
+        if progress_callback:
+            progress_callback(0, pages_to_process, 'render')
+
+        # ── Detect OCR backend ────────────────────────────────────
+        backend = None
         try:
             import asyncio
             import winocr  # noqa: F401
             backend = 'winocr'
         except Exception:
+            pass
+        if backend is None:
             try:
                 import pytesseract  # noqa: F401
                 backend = 'tesseract'
             except Exception:
                 raise RuntimeError(
                     "No OCR backend available. Install 'winocr' (Windows) or "
-                    "'pytesseract' + Tesseract binary (Linux/macOS)."
+                    "'pytesseract' + Tesseract binary (Linux/macOS/Render)."
                 )
 
-        all_text = []
+        # ── Render all pages to PIL images first (fast, CPU-light) ─
+        # Page 1 at slightly higher DPI to preserve small metadata numbers.
+        print(f"  Rendering {pages_to_process} pages (backend={backend}, dpi={dpi})", flush=True)
+        images = []
+        for i in range(pages_to_process):
+            page_dpi = 150 if i == 0 else dpi
+            pix = doc[i].get_pixmap(dpi=page_dpi)
+            img = Image.open(_io.BytesIO(pix.tobytes('png')))
+            images.append(img)
+
+        # ── OCR ───────────────────────────────────────────────────
+        results = [''] * pages_to_process
+
         if backend == 'winocr':
             import asyncio
             import winocr
 
-            async def ocr_all():
-                out = []
-                for i in range(pages_to_process):
-                    page = doc[i]
-                    pix = page.get_pixmap(dpi=dpi)
-                    img = Image.open(_io.BytesIO(pix.tobytes('png')))
-                    result = await winocr.recognize_pil(img, lang='en')
-                    out.append(result.text)
-                    print(f"  OCR page {i+1}/{pages_to_process} ({time.time()-start_time:.1f}s)", flush=True)
-                return out
+            async def _ocr_all_async():
+                tasks = [winocr.recognize_pil(img, lang='en') for img in images]
+                outs = await asyncio.gather(*tasks)
+                return [o.text for o in outs]
 
-            all_text = asyncio.run(ocr_all())
+            results = asyncio.run(_ocr_all_async())
+            if progress_callback:
+                progress_callback(pages_to_process, pages_to_process, 'winocr')
+
         else:
+            # Tesseract: spawns a subprocess per page → use threads for parallelism
+            from concurrent.futures import ThreadPoolExecutor, as_completed
             import pytesseract
-            for i in range(pages_to_process):
-                page = doc[i]
-                pix = page.get_pixmap(dpi=dpi)
-                img = Image.open(_io.BytesIO(pix.tobytes('png')))
-                txt = pytesseract.image_to_string(img, lang='eng')
-                all_text.append(txt)
-                print(f"  OCR page {i+1}/{pages_to_process} ({time.time()-start_time:.1f}s)", flush=True)
+
+            lang = self._tess_lang()
+            cfg = self._TESS_CFG
+            done_count = [0]  # mutable counter for closure
+
+            def _ocr_one(idx):
+                txt = pytesseract.image_to_string(images[idx], lang=lang, config=cfg)
+                return idx, txt
+
+            n_workers = min(4, pages_to_process)  # 4 parallel Tesseract processes
+            with ThreadPoolExecutor(max_workers=n_workers) as pool:
+                futures = {pool.submit(_ocr_one, i): i for i in range(pages_to_process)}
+                for fut in as_completed(futures):
+                    idx, txt = fut.result()
+                    results[idx] = txt
+                    done_count[0] += 1
+                    elapsed = time.time() - start_time
+                    print(
+                        f"  OCR {done_count[0]}/{pages_to_process} pages "
+                        f"({elapsed:.1f}s)",
+                        flush=True,
+                    )
+                    if progress_callback:
+                        progress_callback(done_count[0], pages_to_process, 'ocr')
 
         total_time = time.time() - start_time
-        print(f"  OCR complete ({backend}): {pages_to_process} pages in {total_time:.1f}s ({total_time/pages_to_process:.1f}s/page)", flush=True)
-        self._page_texts = list(all_text)
-        return "\n\n".join(all_text)
+        per_page = total_time / pages_to_process if pages_to_process else 0
+        print(
+            f"  OCR complete ({backend}): {pages_to_process} pages in "
+            f"{total_time:.1f}s ({per_page:.1f}s/page)",
+            flush=True,
+        )
+        self._page_texts = list(results)
+        return "\n\n".join(results)
 
-    def _ocr_page1_hq(self, doc, dpi=250):
-        """OCR just page 1 at higher DPI for accurate cover-page metadata."""
+    def _ocr_page1_hq(self, doc, dpi=150):
+        """Kept for backwards compatibility — now handled inside _ocr_pdf."""
         from PIL import Image
         import io as _io
-
         if len(doc) == 0:
             return ""
+        if self._page_texts:
+            return self._page_texts[0]
         page = doc[0]
         pix = page.get_pixmap(dpi=dpi)
         img = Image.open(_io.BytesIO(pix.tobytes('png')))
-
         try:
-            import asyncio
-            import winocr
-
-            async def _ocr():
-                return await winocr.recognize_pil(img, lang='en')
-
-            return asyncio.run(_ocr()).text
+            import asyncio, winocr
+            async def _o(): return await winocr.recognize_pil(img, lang='en')
+            return asyncio.run(_o()).text
         except Exception:
             try:
                 import pytesseract
-                return pytesseract.image_to_string(img, lang='eng')
+                return pytesseract.image_to_string(
+                    img, lang=self._tess_lang(), config=self._TESS_CFG)
             except Exception:
                 return ""
+
 
     def _parse_eci_roll_format(self, text):
         """Parse ECI electoral roll from OCR text.

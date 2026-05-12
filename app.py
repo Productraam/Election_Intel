@@ -7,7 +7,9 @@ import os
 import io
 import json
 import re
-from datetime import datetime, timezone
+import uuid
+import threading
+import time as _time
 
 # Load .env file if present (for local dev / bare-metal deploys).
 # Must happen before any os.environ.get() calls.
@@ -17,7 +19,7 @@ try:
 except ImportError:
     pass  # python-dotenv not installed; rely on real env vars
 
-from flask import Flask, request, jsonify, render_template, send_file, g
+from flask import Flask, request, jsonify, render_template, send_file, g, Response
 from werkzeug.security import generate_password_hash, check_password_hash
 from voter_parser import VoterListParser
 from analytics import ElectionAnalytics
@@ -30,6 +32,51 @@ app.config['SECRET_KEY'] = os.environ.get('EI_SECRET_KEY', 'election-intel-secre
 
 # Initialize database
 init_db(app)
+
+# ── Background OCR task registry ────────────────────────────────────────────
+# Maps task_id (uuid str) → {status, progress, total, result, error}
+_OCR_TASKS: dict = {}
+_OCR_TASKS_LOCK = threading.Lock()
+
+
+def _task_update(tid: str, **kw):
+    with _OCR_TASKS_LOCK:
+        if tid in _OCR_TASKS:
+            _OCR_TASKS[tid].update(kw)
+
+
+def _run_ocr_task(tid: str, file_bytes: bytes, filename: str, max_pages):
+    """Background thread: parse PDF and store result in _OCR_TASKS."""
+    _task_update(tid, status='running', progress=0, total=0)
+    try:
+        parser = VoterListParser()
+
+        def _progress(done, total, msg=''):
+            _task_update(tid, progress=done, total=total, msg=str(msg))
+
+        parser.parse_pdf_stream(io.BytesIO(file_bytes), max_pages=max_pages,
+                                progress_callback=_progress)
+
+        if not parser.voters:
+            _task_update(tid, status='error', error='No voters found in file. Check file format.')
+            return
+
+        STORE['voters'] = parser.voters
+        STORE['metadata'] = parser.metadata
+        STORE['filename'] = filename
+        STORE['upload_time'] = datetime.now().isoformat()
+        STORE['source'] = 'upload'
+        STORE['ward_id'] = None
+        STORE['ward_ids'] = []
+
+        _task_update(tid, status='done', result={
+            'success': True,
+            'filename': filename,
+            'total_voters': len(parser.voters),
+            'metadata': parser.metadata,
+        })
+    except Exception as e:
+        _task_update(tid, status='error', error=str(e))
 
 SAVE_DIR = os.path.join(os.path.dirname(__file__), 'saved_wards')
 os.makedirs(SAVE_DIR, exist_ok=True)
@@ -118,38 +165,142 @@ def upload():
     if not f.filename:
         return jsonify({'error': 'Empty filename'}), 400
 
-    fname = f.filename.lower()
+    fname = f.filename
+    fname_lower = fname.lower()
     max_pages = request.form.get('max_pages', type=int) or None
     parser = VoterListParser()
 
+    if not fname_lower.endswith('.pdf'):
+        # CSV / TXT: parse synchronously (fast)
+        try:
+            if fname_lower.endswith('.csv'):
+                parser.parse_csv_stream(f.stream)
+            elif fname_lower.endswith('.txt'):
+                parser.parse_text_stream(f.stream)
+            else:
+                return jsonify({'error': 'Unsupported format. Use PDF, CSV, or TXT'}), 400
+        except Exception as e:
+            return jsonify({'error': f'Parse error: {str(e)}'}), 400
+
+        if not parser.voters:
+            return jsonify({'error': 'No voters found in file. Check file format.'}), 400
+
+        STORE['voters'] = parser.voters
+        STORE['metadata'] = parser.metadata
+        STORE['filename'] = fname
+        STORE['upload_time'] = datetime.now().isoformat()
+        STORE['source'] = 'upload'
+        STORE['ward_id'] = None
+        STORE['ward_ids'] = []
+        return jsonify({
+            'success': True,
+            'filename': fname,
+            'total_voters': len(parser.voters),
+            'metadata': parser.metadata,
+        })
+
+    # PDF: read bytes, probe whether it's image-based
+    file_bytes = f.read()
     try:
-        if fname.endswith('.pdf'):
-            stream = io.BytesIO(f.read())
-            parser.parse_pdf_stream(stream, max_pages=max_pages)
-        elif fname.endswith('.csv'):
-            parser.parse_csv_stream(f.stream)
-        elif fname.endswith('.txt'):
-            parser.parse_text_stream(f.stream)
-        else:
-            return jsonify({'error': 'Unsupported format. Use PDF, CSV, or TXT'}), 400
-    except Exception as e:
-        return jsonify({'error': f'Parse error: {str(e)}'}), 400
+        import fitz
+        with fitz.open(stream=file_bytes, filetype='pdf') as probe:
+            is_image_pdf = all(
+                len(probe[i].get_text().strip()) <= 50
+                for i in range(min(5, len(probe)))
+            )
+    except Exception:
+        is_image_pdf = True  # assume image PDF if probe fails
 
-    if not parser.voters:
-        return jsonify({'error': 'No voters found in file. Check file format.'}), 400
+    if not is_image_pdf:
+        # Text PDF: parse synchronously (very fast, no OCR)
+        try:
+            parser.parse_pdf_stream(io.BytesIO(file_bytes), max_pages=max_pages)
+        except Exception as e:
+            return jsonify({'error': f'Parse error: {str(e)}'}), 400
 
-    STORE['voters'] = parser.voters
-    STORE['metadata'] = parser.metadata
-    STORE['filename'] = f.filename
-    STORE['upload_time'] = datetime.now().isoformat()
-    STORE['source'] = 'upload'
+        if not parser.voters:
+            return jsonify({'error': 'No voters found in file. Check file format.'}), 400
 
-    return jsonify({
-        'success': True,
-        'filename': f.filename,
-        'total_voters': len(parser.voters),
-        'metadata': parser.metadata
-    })
+        STORE['voters'] = parser.voters
+        STORE['metadata'] = parser.metadata
+        STORE['filename'] = fname
+        STORE['upload_time'] = datetime.now().isoformat()
+        STORE['source'] = 'upload'
+        STORE['ward_id'] = None
+        STORE['ward_ids'] = []
+        return jsonify({
+            'success': True,
+            'filename': fname,
+            'total_voters': len(parser.voters),
+            'metadata': parser.metadata,
+        })
+
+    # Image PDF: start background OCR task, return task_id immediately
+    tid = str(uuid.uuid4())
+    with _OCR_TASKS_LOCK:
+        _OCR_TASKS[tid] = {'status': 'pending', 'progress': 0, 'total': 0}
+
+    t = threading.Thread(
+        target=_run_ocr_task,
+        args=(tid, file_bytes, fname, max_pages),
+        daemon=True,
+    )
+    t.start()
+    return jsonify({'task_id': tid})
+
+
+@app.route('/api/upload/progress/<tid>', methods=['GET'])
+def upload_progress(tid):
+    """SSE stream: sends progress events while OCR runs in background.
+    Auth: task_id is a UUID (122 bits entropy) — unguessable by design.
+    No voter data is streamed, only numeric progress counts.
+    """
+    def _stream():
+        max_wait = 600  # give up after 10 min (should never hit this)
+        waited = 0
+        while waited < max_wait:
+            with _OCR_TASKS_LOCK:
+                task = dict(_OCR_TASKS.get(tid) or {})
+
+            status = task.get('status', 'unknown')
+
+            if status in ('pending', 'running'):
+                prog = task.get('progress', 0)
+                total = task.get('total', 0)
+                pct = int(prog / total * 100) if total else 0
+                yield (
+                    f"data: {json.dumps({'type': 'progress', 'page': prog, 'total': total, 'pct': pct})}\n\n"
+                )
+            elif status == 'done':
+                yield f"data: {json.dumps({'type': 'done', 'result': task.get('result')})}\n\n"
+                # Clean up after delivery
+                with _OCR_TASKS_LOCK:
+                    _OCR_TASKS.pop(tid, None)
+                return
+            elif status == 'error':
+                yield f"data: {json.dumps({'type': 'error', 'error': task.get('error', 'Unknown error')})}\n\n"
+                with _OCR_TASKS_LOCK:
+                    _OCR_TASKS.pop(tid, None)
+                return
+            else:
+                yield f"data: {json.dumps({'type': 'ping'})}\n\n"
+
+            _time.sleep(0.8)
+            waited += 0.8
+
+        yield f"data: {json.dumps({'type': 'error', 'error': 'OCR timed out'})}\n\n"
+
+    return Response(
+        _stream(),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',   # disable nginx buffering on Render
+            'Connection': 'keep-alive',
+        },
+    )
+
+
 
 
 @app.route('/api/upload/analysis')

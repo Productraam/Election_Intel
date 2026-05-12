@@ -1390,21 +1390,72 @@ fileInput.addEventListener('change', () => { if(fileInput.files.length) uploadFi
 async function uploadFile(file) {
     const maxPages = document.getElementById('maxPages').value;
     const label = maxPages ? maxPages + ' pages' : 'all pages';
-    dropZone.innerHTML = `<h2>Processing...</h2><p>OCR scanning ${label}... This may take a few minutes.</p>`;
+    dropZone.innerHTML = `
+        <h2 style="margin-bottom:12px">📄 Uploading…</h2>
+        <div style="width:100%;max-width:400px;height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin:0 auto 10px auto">
+            <div id="ocrBar" style="height:100%;width:0%;background:var(--primary);border-radius:4px;transition:width 0.4s ease"></div>
+        </div>
+        <p id="ocrStatus" style="color:var(--muted);font-size:0.85rem">Preparing…</p>`;
     const fd = new FormData();
     fd.append('file', file);
     if(maxPages) fd.append('max_pages', maxPages);
     try {
         const res = await apiFetch('/api/upload', {method:'POST', body:fd});
         const data = await res.json();
-        if(data.error) { dropZone.innerHTML = `<h2 style="color:var(--red)">Error</h2><p>${data.error}</p><p style="margin-top:8px;font-size:0.8rem;color:var(--muted)">Try the Debug PDF button below to see raw extraction</p>`; return; }
-        showApp(data);
-        // Post-upload preview: EPIC analysis vs saved wards
-        try {
-            const ana = await api('/api/upload/analysis');
-            openUploadAnalysisModal(ana);
-        } catch(e) { /* preview is optional */ }
-    } catch(e) { dropZone.innerHTML = `<h2 style="color:var(--red)">Error</h2><p>${e.message}</p>`; }
+        if(data.error) {
+            dropZone.innerHTML = `<h2 style="color:var(--red)">Error</h2><p>${escapeHtml(data.error)}</p><p style="margin-top:8px;font-size:0.8rem;color:var(--muted)">Try the Debug PDF button below to see raw extraction</p>`;
+            return;
+        }
+        if(data.task_id) {
+            // Image PDF — OCR running in background, stream progress
+            await _trackOcrProgress(data.task_id);
+        } else {
+            // Text PDF / CSV — instant result
+            showApp(data);
+            try { const ana = await api('/api/upload/analysis'); openUploadAnalysisModal(ana); } catch(e) {}
+        }
+    } catch(e) {
+        dropZone.innerHTML = `<h2 style="color:var(--red)">Error</h2><p>${escapeHtml(e.message)}</p>`;
+    }
+}
+
+function _setOcrProgress(page, total, extra) {
+    const pct = total ? Math.round(page / total * 100) : 0;
+    const bar = document.getElementById('ocrBar');
+    const lbl = document.getElementById('ocrStatus');
+    if(bar) bar.style.width = pct + '%';
+    if(lbl) lbl.textContent = total
+        ? `OCR scanning: page ${page} of ${total} — ${pct}% complete`
+        : (extra || 'Processing…');
+}
+
+async function _trackOcrProgress(taskId) {
+    return new Promise((resolve, reject) => {
+        const es = new EventSource('/api/upload/progress/' + taskId);
+        es.onmessage = async (e) => {
+            let msg;
+            try { msg = JSON.parse(e.data); } catch { return; }
+            if(msg.type === 'progress') {
+                _setOcrProgress(msg.page, msg.total);
+            } else if(msg.type === 'done') {
+                es.close();
+                _setOcrProgress(msg.result && msg.result.total_voters ? 1 : 1, 1, 'Done!');
+                showApp(msg.result);
+                try { const ana = await api('/api/upload/analysis'); openUploadAnalysisModal(ana); } catch(e2) {}
+                resolve();
+            } else if(msg.type === 'error') {
+                es.close();
+                dropZone.innerHTML = `<h2 style="color:var(--red)">OCR Error</h2><p>${escapeHtml(msg.error || 'Unknown error')}</p>`;
+                reject(new Error(msg.error));
+            }
+            // 'ping' — ignore
+        };
+        es.onerror = () => {
+            es.close();
+            dropZone.innerHTML = `<h2 style="color:var(--red)">Connection lost</h2><p>Try refreshing and uploading again.</p>`;
+            reject(new Error('SSE connection error'));
+        };
+    });
 }
 
 async function debugUpload() {
