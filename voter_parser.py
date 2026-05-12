@@ -184,13 +184,32 @@ class VoterListParser:
             progress_callback(0, pages_to_process, 'render')
 
         # ── Detect OCR backend ────────────────────────────────────
+        import sys as _sys
         backend = None
-        try:
-            import asyncio
-            import winocr  # noqa: F401
-            backend = 'winocr'
-        except Exception:
-            pass
+
+        if _sys.platform == 'win32':
+            # Windows: prefer WinOCR (Windows.Media.Ocr — fast, no binary needed)
+            # Auto-install the winocr pip package if missing.
+            try:
+                import winocr  # noqa: F401
+                backend = 'winocr'
+            except ModuleNotFoundError:
+                print("  [OCR] winocr not found — installing automatically…", flush=True)
+                import subprocess
+                try:
+                    subprocess.check_call(
+                        [_sys.executable, '-m', 'pip', 'install', 'winocr'],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    )
+                    import importlib
+                    import winocr  # noqa: F401
+                    backend = 'winocr'
+                    print("  [OCR] winocr installed successfully.", flush=True)
+                except Exception as _e:
+                    print(f"  [OCR] winocr auto-install failed ({_e}); falling back to Tesseract.", flush=True)
+            except Exception:
+                pass  # some other import error — fall back to Tesseract
+
         if backend is None:
             try:
                 import pytesseract  # noqa: F401
