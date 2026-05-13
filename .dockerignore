@@ -18,8 +18,8 @@ env
 
 # Local data — mount these as volumes instead of baking them in
 election_intel.db
-saved_wards/*.json
 uploads/*
+# Keep saved_wards so demo data (Hodalur 01) is available on deploy
 
 # Tests & dev artifacts
 test_*.py
