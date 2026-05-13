@@ -24,21 +24,14 @@ RUN mkdir -p /app/saved_wards /app/uploads /app/data \
     && chmod -R 755 /app
 
 ENV EI_HOST=0.0.0.0 \
-    EI_PORT=5001 \
+    EI_PORT=8080 \
+    PORT=8080 \
     EI_DEBUG=0 \
     PYTHONUNBUFFERED=1
 
-EXPOSE 5001
+EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD curl -fsS http://127.0.0.1:5001/api/status || exit 1
+# Cloud Run handles health checks itself — no HEALTHCHECK needed.
 
 # 1 worker + 4 threads is safe with NullPool (Supabase shared pooler).
-# Increase --workers only if you have a dedicated Postgres connection pool.
-CMD ["gunicorn", "wsgi:app", \
-     "--bind", "0.0.0.0:5001", \
-     "--workers", "1", \
-     "--threads", "4", \
-     "--timeout", "300", \
-     "--access-logfile", "-", \
-     "--error-logfile", "-"]
+CMD ["/bin/sh", "-c", "gunicorn wsgi:app --bind 0.0.0.0:${PORT:-8080} --workers 1 --threads 4 --timeout 300 --access-logfile - --error-logfile -"]
