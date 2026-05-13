@@ -1709,18 +1709,28 @@ def load_ward(name):
     """Load a saved ward into memory"""
     safe_name = _safe_ward_filename(name)
     fpath = os.path.join(SAVE_DIR, safe_name + '.json')
-    if not os.path.isfile(fpath):
-        return jsonify({'error': 'Ward not found'}), 404
 
-    with open(fpath, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-
-    STORE['voters'] = data.get('voters', [])
-    STORE['metadata'] = data.get('metadata', {})
-    STORE['filename'] = data.get('ward_name', '') or data.get('source_filename', '')
-    STORE['upload_time'] = data.get('saved_at', '')
-    STORE['election_history'] = data.get('election_history', [])
-    STORE['source'] = 'loaded'
+    # Try JSON file first
+    if os.path.isfile(fpath):
+        with open(fpath, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        STORE['voters'] = data.get('voters', [])
+        STORE['metadata'] = data.get('metadata', {})
+        STORE['filename'] = data.get('ward_name', '') or data.get('source_filename', '')
+        STORE['upload_time'] = data.get('saved_at', '')
+        STORE['election_history'] = data.get('election_history', [])
+        STORE['source'] = 'loaded'
+    else:
+        # Fallback: load from database
+        db_ward = Ward.query.filter_by(file_key=safe_name).first()
+        if not db_ward:
+            return jsonify({'error': 'Ward not found'}), 404
+        STORE['voters'] = [v.to_dict() for v in db_ward.voters.all()]
+        STORE['metadata'] = db_ward.ward_metadata
+        STORE['filename'] = db_ward.name
+        STORE['upload_time'] = db_ward.saved_at.isoformat() if db_ward.saved_at else ''
+        STORE['election_history'] = [h.to_dict() for h in db_ward.history.all()]
+        STORE['source'] = 'loaded'
 
     # Re-hydrate any TagDefinitions that were active when this ward was
     # saved but have since been deleted from the live DB. Existing

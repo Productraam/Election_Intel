@@ -25,7 +25,17 @@ SAVE_DIR = os.path.join(os.path.dirname(__file__), 'saved_wards')
 
 
 def get_all_wards():
-    """Load summary info from all saved ward files."""
+    """Load summary info from all saved wards (DB first, then JSON files fallback)."""
+    # Try database first
+    try:
+        from database import Ward
+        db_wards = Ward.query.all()
+        if db_wards:
+            return [w.to_summary() for w in db_wards]
+    except Exception:
+        pass
+
+    # Fallback: read from saved_wards/ JSON files
     wards = []
     if not os.path.isdir(SAVE_DIR):
         return wards
@@ -160,16 +170,38 @@ def load_combined_voters(ward_files):
     ward_names = []
 
     for wf in ward_files:
-        fpath = os.path.join(SAVE_DIR, wf + '.json')
-        if not os.path.isfile(fpath):
-            continue
-        with open(fpath, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+        voters = []
+        meta = {}
+        ward_name = wf
+        hierarchy = {}
+        election_history = []
 
-        voters = data.get('voters', [])
-        meta = data.get('metadata', {})
-        ward_name = data.get('ward_name', wf)
-        hierarchy = data.get('hierarchy', {})
+        # Try JSON file first
+        fpath = os.path.join(SAVE_DIR, wf + '.json')
+        if os.path.isfile(fpath):
+            with open(fpath, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            voters = data.get('voters', [])
+            meta = data.get('metadata', {})
+            ward_name = data.get('ward_name', wf)
+            hierarchy = data.get('hierarchy', {})
+            election_history = data.get('election_history', [])
+        else:
+            # Fallback: load from database
+            try:
+                from database import Ward as WardModel
+                db_ward = WardModel.query.filter_by(file_key=wf).first()
+                if db_ward:
+                    voters = [v.to_dict() for v in db_ward.voters.all()]
+                    meta = db_ward.ward_metadata
+                    ward_name = db_ward.name
+                    hierarchy = db_ward.hierarchy
+                    election_history = [h.to_dict() for h in db_ward.history.all()]
+                else:
+                    continue
+            except Exception:
+                continue
+
         ward_names.append(ward_name)
 
         # Tag each voter with their ward source
@@ -177,7 +209,7 @@ def load_combined_voters(ward_files):
             v['_ward'] = ward_name
 
         all_voters.extend(voters)
-        all_history.extend(data.get('election_history', []))
+        all_history.extend(election_history)
 
         # Merge metadata (keep first non-empty value for each key)
         for k, val in meta.items():
