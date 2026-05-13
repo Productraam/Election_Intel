@@ -94,22 +94,6 @@ STORE = {
     'source': None,        # 'upload' (fresh parse) | 'edited' | 'loaded'
 }
 
-# Auto-load a default ward so guests see data immediately
-DEFAULT_WARD = os.environ.get('EI_DEFAULT_WARD', 'Hodalur 01')
-_default_path = os.path.join(SAVE_DIR, DEFAULT_WARD + '.json')
-if os.path.isfile(_default_path):
-    try:
-        with open(_default_path, 'r', encoding='utf-8') as _f:
-            _wd = json.load(_f)
-        STORE['voters'] = _wd.get('voters', [])
-        STORE['metadata'] = _wd.get('metadata', {})
-        STORE['filename'] = _wd.get('ward_name', DEFAULT_WARD)
-        STORE['upload_time'] = _wd.get('saved_at', '')
-        STORE['election_history'] = _wd.get('election_history', [])
-        STORE['source'] = 'loaded'
-    except Exception:
-        pass
-
 
 def get_analytics():
     """Return an analytics instance scoped to the current authenticated
