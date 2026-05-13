@@ -209,10 +209,41 @@
         /* PWA install */
         .install-banner { display:none; padding:8px 16px; background:var(--card); border:1px solid var(--primary); border-radius:8px; margin:8px 20px; text-align:center; cursor:pointer; }
         .install-banner:hover { background:rgba(249,115,22,0.1); }
+        /* Landing Screen */
+        #landingScreen { position:fixed; top:0; left:0; right:0; bottom:0; background:var(--bg); z-index:10000; display:flex; align-items:center; justify-content:center; }
+        .landing-box { text-align:center; padding:48px 40px; }
+        .landing-box h1 { font-size:2.2rem; color:var(--primary); margin-bottom:8px; }
+        .landing-box p { color:var(--muted); font-size:1rem; margin-bottom:36px; }
+        .landing-options { display:flex; gap:20px; justify-content:center; flex-wrap:wrap; }
+        .landing-card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:32px 40px; cursor:pointer; transition:all .25s; min-width:200px; }
+        .landing-card:hover { border-color:var(--primary); transform:translateY(-4px); box-shadow:0 8px 24px rgba(249,115,22,0.15); }
+        .landing-card .icon { font-size:2.5rem; margin-bottom:12px; }
+        .landing-card h3 { font-size:1.1rem; margin-bottom:6px; color:var(--text); }
+        .landing-card span { font-size:0.82rem; color:var(--muted); }
     </style>
 </head>
 <body>
-    <div class="header">
+    <!-- Landing Screen -->
+    <div id="landingScreen">
+        <div class="landing-box">
+            <h1>⚡ Election Intelligence</h1>
+            <p>Campaign analytics & voter management platform</p>
+            <div class="landing-options">
+                <div class="landing-card" onclick="chooseLanding('login')">
+                    <div class="icon">🔐</div>
+                    <h3>Login</h3>
+                    <span>Full access — upload, edit & manage</span>
+                </div>
+                <div class="landing-card" onclick="chooseLanding('guest')">
+                    <div class="icon">👁️</div>
+                    <h3>Guest User</h3>
+                    <span>View dashboard & analytics (read-only)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="header" id="mainHeader" style="display:none">
         <h1>⚡ Election Intelligence</h1>
         <div style="display:flex;align-items:center;gap:12px">
             <span class="offline-badge" id="offlineBadge">OFFLINE</span>
@@ -224,7 +255,7 @@
                 <span class="role" id="userRole"></span>
                 <span class="logout" onclick="doLogout()" title="Logout">✕</span>
             </div>
-            <button class="btn" id="loginBtn" style="padding:4px 10px;font-size:0.7rem;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:6px;cursor:pointer" onclick="openLoginModal()">🔑 Login</button>
+            <button class="btn" id="loginBtn" style="display:none;padding:4px 10px;font-size:0.7rem;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:6px;cursor:pointer" onclick="openLoginModal()">🔑 Login</button>
             <div class="status" id="headerStatus">No data loaded</div>
         </div>
     </div>
@@ -1219,13 +1250,62 @@ async function doLogin() {
 function doLogout() {
     authToken = '';
     currentUser = null;
+    isGuestMode = false;
     localStorage.removeItem('ei_token');
     localStorage.removeItem('ei_user');
     document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('uploadSection').style.display = 'block';
     document.getElementById('mainApp').style.display = 'none';
+    document.getElementById('uploadSection').style.display = 'none';
     document.getElementById('userBadge').style.display = 'none';
+    document.getElementById('mainHeader').style.display = 'none';
+    // Back to landing screen
+    document.getElementById('landingScreen').style.display = 'flex';
+}
+
+let isGuestMode = false;
+
+function chooseLanding(choice) {
+    document.getElementById('landingScreen').style.display = 'none';
+    document.getElementById('mainHeader').style.display = '';
+    if (choice === 'login') {
+        isGuestMode = false;
+        document.getElementById('loginScreen').style.display = 'block';
+    } else {
+        isGuestMode = true;
+        enterGuestMode();
+    }
+}
+
+function enterGuestMode() {
+    document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('loginBtn').style.display = 'inline-block';
+    // Hide settings & server tabs for guest
+    document.querySelectorAll('.tab[data-tab="settings"], .tab[data-tab="server"]').forEach(t => t.style.display = 'none');
+    // Hide save button for guest
+    document.getElementById('saveWardBtn').style.display = 'none';
+    // Check if data is loaded; if not, show hierarchy browser so guest can pick a ward
+    checkStatusForGuest();
+}
+
+async function checkStatusForGuest() {
+    try {
+        const res = await apiFetch('/api/status');
+        const data = await res.json();
+        if(data.loaded) {
+            document.getElementById('uploadSection').style.display = 'none';
+            showApp(data);
+        } else {
+            // Show hierarchy browser (without upload zone) so guest can pick a ward
+            document.getElementById('uploadSection').style.display = 'block';
+            document.getElementById('dropZone').style.display = 'none';
+            const debugBtn = document.querySelector('#uploadSection > div:nth-child(2)');
+            if (debugBtn) debugBtn.style.display = 'none';
+        }
+        loadHierarchy();
+    } catch(e) {
+        document.getElementById('uploadSection').style.display = 'block';
+        document.getElementById('dropZone').style.display = 'none';
+    }
 }
 
 function openLoginModal() {
@@ -1233,9 +1313,19 @@ function openLoginModal() {
 }
 function closeLoginModal() {
     document.getElementById('loginScreen').style.display = 'none';
+    if (!authToken && isGuestMode) {
+        // Stay in guest mode
+    } else if (!authToken) {
+        // Go back to landing
+        document.getElementById('mainHeader').style.display = 'none';
+        document.getElementById('landingScreen').style.display = 'flex';
+    }
 }
 
 function showPostLogin() {
+    isGuestMode = false;
+    document.getElementById('landingScreen').style.display = 'none';
+    document.getElementById('mainHeader').style.display = '';
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('uploadSection').style.display = 'block';
     document.getElementById('loginBtn').style.display = 'none';
@@ -1382,11 +1472,10 @@ openSyncDB();
         try { currentUser = JSON.parse(savedUser); } catch(e) {}
         showPostLogin();
     } else {
-        // Guest mode: show app directly without login
-        document.getElementById('loginScreen').style.display = 'none';
-        document.getElementById('uploadSection').style.display = 'block';
-        document.getElementById('loginBtn').style.display = 'inline-block';
-        checkStatus();
+        // Show landing screen — user picks Login or Guest
+        document.getElementById('landingScreen').style.display = 'flex';
+        document.getElementById('mainHeader').style.display = 'none';
+        document.getElementById('uploadSection').style.display = 'none';
     }
 })();
 
@@ -1497,9 +1586,16 @@ function showApp(uploadData) {
     document.getElementById('uploadSection').style.display = 'none';
     document.getElementById('mainApp').style.display = 'block';
     const isWard = !navState.level || navState.level === 'ward';
-    document.getElementById('saveWardBtn').style.display = isWard ? '' : 'none';
+    // Guest: hide save/upload buttons and settings/server tabs
+    if (isGuestMode) {
+        document.getElementById('saveWardBtn').style.display = 'none';
+        document.getElementById('backBtn').style.display = 'none';
+        document.querySelectorAll('.tab[data-tab="settings"], .tab[data-tab="server"]').forEach(t => t.style.display = 'none');
+    } else {
+        document.getElementById('saveWardBtn').style.display = isWard ? '' : 'none';
+        document.getElementById('backBtn').style.display = '';
+    }
     document.getElementById('downloadReportBtn').style.display = '';
-    document.getElementById('backBtn').style.display = '';
     document.getElementById('headerStatus').textContent = `${uploadData.total_voters} voters — ${uploadData.filename || uploadData.name || ''}`;
     document.getElementById('headerStatus').classList.add('loaded');
     renderNavBar();
@@ -1524,6 +1620,12 @@ function backToUpload() {
     document.getElementById('headerStatus').textContent = 'No data loaded';
     document.getElementById('headerStatus').classList.remove('loaded');
     navState = { level: null, value: null, path: {}, file: null };
+    // Guest: hide upload zone, only show hierarchy browser
+    if (isGuestMode) {
+        document.getElementById('dropZone').style.display = 'none';
+    } else {
+        document.getElementById('dropZone').style.display = '';
+    }
     loadSavedWards();
 }
 
@@ -2145,6 +2247,8 @@ function applyTabRoleVisibility() {
     const role = (typeof currentUser !== 'undefined' && currentUser && currentUser.role) || '';
     document.querySelectorAll('.tab[data-roles]').forEach(t => {
         const allowed = (t.dataset.roles || '').split(',').map(s => s.trim());
+        // Guest mode: always hide role-restricted tabs (settings, server)
+        if (isGuestMode) { t.style.display = 'none'; return; }
         t.style.display = (role && allowed.includes(role)) ? '' : 'none';
     });
 }
